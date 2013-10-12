@@ -1,0 +1,75 @@
+On the Mojo there is a microcontroller that provides most of the core functionality. As we improve the firmware for the microcontroller by fixing bugs and adding new features, you can update the Mojo by following this tutorial. The microcontroller has a USB bootloader so it is easy to update yourself.
+
+First you will need to download the latest firmware. The latest firmware was posted on 6/28/2013
+
+Mojo Firmware
+
+Ubuntu
+
+It is pretty easy to update the Mojo in Ubuntu using dfu-programmer.
+
+First you need to install dfu-programmer. Open a terminal and enter
+
+sudo apt-get install dfu-programmer
+You also need to download the following file and place it in /etc/udev/rules.d. You will need super user rights to do this.
+
+Mojo USB Rules
+
+Once you add the rules file, you will need to unplug and re-plug the Mojo to have it take affect. 
+
+Jump down to Entering Bootloader Mode for instructions on how to get the Mojo into bootloader mode.
+
+You can now update the Mojo with the following commands.
+
+dfu-programmer atmega32u4 erase
+dfu-programmer atmega32u4 flash /path/to/hex/file/Mojo-Loader-1.1.hex
+dfu-programmer atmega32u4 start
+Note that if you have a Mojo V2 the board probably has an ATmega16U4 microcontroller and not an ATmega32U4. In that case, replace atmega32u4 with atmega16u4 in the above commands.
+
+The firmware is now updated.
+
+Windows
+
+To update the Mojo in Windows you will need to download FLIP.
+
+FLIP Download Page
+
+There are two flavors of FLIP, one with a Java Runtime included and one without. Either will work as long as you have Java installed on your computer. If you are unsure if you have Java or not, download the one with the Runtime included.
+
+Once you've installed FLIP, jump down to Entering Bootloader Mode for instructions on how to get the Mojo into bootloader mode.
+
+Windows may or may not find the driver for you Mojo. If it doesn't, open the Device Manager. It should look similar to below.
+
+Device Manager
+
+Right click on the ATm32U4DFU or ATm16U4DFU, depending on your Mojo, and click Update Driver Software... 
+
+Then choose Browse my computer for driver software and fill in the path to where you installed FLIP. Select the sub-folder usb.
+
+Driver Path
+
+Click Next and install the driver.
+
+Once the driver is installed, launch FLIP.
+
+Click on the chip icon in the upper left corner and choose the microcontroller your Mojo has. If you have a Mojo V2 chances are you have an ATmega16U4, although some have ATmega32U4's. If you have a Mojo V3 you have an ATmega32U4.
+
+Click on the icon of the USB cable and choose USB then Open.
+
+Next, click on the red book that has the red arrow pointing into it. When you hover over it with your mouse it should say Load HEX File. Select the Mojo-Loader-1.1.hex file you downloaded.
+
+Load Hex File
+
+Finally click on Run. Once that finishes click Start Application. The firmware is now updated!
+
+Entering Bootloader Mode
+
+To program the microcontroller you need to get it into bootloader mode.
+
+First plug the Mojo into your computer. With the Mojo still powered on, flip it over so you see the six little pads above the last O in Mojo. You need to momentarily connect the two leftmost pads. A jumper wire works well for this. Connecting these pads resets the microcontroller and on restart it will enter the bootloader.
+
+The image below shows the pins to connect.
+
+Mojo Bootloader Pins
+
+Once you tap those together it should be in bootloader mode. Jump back to your operating system's section.

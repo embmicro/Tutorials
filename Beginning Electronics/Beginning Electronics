@@ -1,0 +1,21 @@
+This tutorial will be your first step into the world of electronics. Here I will tell you about the three units that are commonly used when talking about electricity. You should have a good understanding of these, it will help you later. Now I know this can be hard. It took me about a year before I fully understood what current really was, then again I did not have this great tutorial to read.
+
+Voltage
+
+Voltage is the measure of electrical potential between two points. Well, what does that mean?!? Voltage is the driving force that makes the electrons move through a wire. If electricity was water then voltage would be pressure. The more pressure, the more force it can move though something with.
+
+The circuits in this tutorial require 5V to operate. That means that if you gave them a lower voltage the circuit may not operate correctly, the electrons would not be able to flow though the intended path. On the other hand if you power the circuit with too much voltage the electrons will force there where through places they should not. This is when things get toasted. You will learn from experience, as I have many times, that 5V component + 9V = bad. Remember to never power you circuits with anything above the rated voltage.
+
+Amperage
+
+Amperage is the measure of how many electrons are flowing past one point. Amperage is also called current or amps for short. One amp equals one coulomb of electrons per second. That equates to roughly 6,241,507,648,655,549,400 electrons per second! So if electricity was water then amperage would be the current.
+
+We will be dealing with a small amount of current. We will be mostly using milliamp, mA. One mA is equal to 1/1000 of an amp. A LED takes only around 35mA. You can not power your circuits with too many amps. The circuit, as long as it is powered with the correct voltage, will only take what it needs. However if you do not power it will enough amps then you have problems. Remember if you have a power source that says “12V 800mA” then you can use up to 800mA. You do not need to use that much.
+
+Wattage
+
+Wattage is the unit used to measure power. To calculate the number of watts used you use, watts = votls * amps. That means that if your circuit is powered by one volt and draws one amp then it is said to consume one watt of power. However if you circuit is powered with 5V but draws 200mA then it also consumes 1 watt. There are methods for converting the voltage/current ratio. You can increase voltage and lose current, or increase current and lose voltage.
+
+Now you should at least have some sort of idea of what electricity is. Be patient it will take some time to get it all. I believe the best way to learn this stuff is to use it! Just dive right in, get your hands dirty. You will learn much quicker then just reading a lot of pages that mean nothing. Now you should go back to the tutorials page and start learning about the various components you will have at your disposal.
+
+Now look to the left to select a component to learn about or click here to continue onto resistors!

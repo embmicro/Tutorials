@@ -1,0 +1,60 @@
+When developing for FPGAs we commonly would have three separate programs open. One program to write the code in, one to build the project, and one to load it onto our board. This is just a bit ridiculous. In following our goal of making FPGAs as accessible as possible, we are now developing the Mojo IDE.
+
+It's my pleasure to announce our first release of the IDE, version 0.0.1 Pre-Alpha. As the name may give away, this is a very early build. It is, however, what we believe to be the first usable build for basic projects. 
+
+Auto-Formatter
+
+Sometimes, keeping your code looking nice can be a lot of tedious work. With the Mojo IDE, just press ctrl+shift+f and all your code will be automatically formatted. Right now this only includes indenting.
+
+Before:
+
+Mojo IDE Auto Indent
+
+After:
+
+Mojo IDE
+
+One-Click Building
+
+The Mojo IDE integrates with Xilinx's PlanAhead tool to build your project without leaving the IDE. This does mean that you will still need to install ISE. Check out the Installing ISE tutorial for more info.
+
+With ISE installed you will need to tell the Mojo IDE where it can find the PlanAhead program. To do this simply go to Settings->PlanAhead Location and browse for the file.
+
+On Windows this is typically something like
+
+C:\Xilinx\14.6\ISE_DS\PlanAhead\bin\planAhead
+
+On Linux this is typically
+
+/opt/Xilinx/14.6/ISE_DS/PlanAhead/bin/planAhead
+
+Once that is set you can simply click the hammer icon to build your project.
+
+Mojo IDE PlanAhead Integration
+
+After you click the icon, you can view the results in the bottom section of the window.
+
+If your project builds successfully you can then move onto the next step.
+
+One-Click Loading
+
+The Mojo IDE has the Mojo Loader code built right into it. This means that once you plug in the Mojo and select the serial port it's connected to (Settings->Serial Port) you will be able to click the arrow icon to load your project onto the Mojo. 
+
+To get the Mojo to work, you need to follow the setup steps found in the Mojo Loader tutorial. The driver is included with the Mojo IDE download so you can just point Windows to the IDE's folder. 
+
+The Mojo IDE knows where to look for the .bin file generated from the build process. That means you can just click the arrow and watch it load!
+
+Mojo IDE One Click Load
+
+Downloads
+
+0.0.1 Pre-Alpha Linux 32bit
+0.0.1 Pre-Alpha Linux 64bit
+0.0.1 Pre-Alpha Windows
+The Mojo IDE is being developed on Ubuntu 13.04. This pre-alpha has been tested to work on Windows, but there are a few minor graphics issues.
+
+Source Code
+
+The Mojo IDE is open source and the code can be found here https://code.google.com/p/mojo-ide/ 
+
+To view the IDE's code (instead of the Mojo Loader) make sure to select the mojo-ide branch.

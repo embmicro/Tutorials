@@ -1,0 +1,45 @@
+So you still want to learn more, well you are about to learn about the capacitor! I have to warn you, capacitors are more complicated then resistors, but you'll be fine. Enough talk, what is a capacitor? A capacitor is a part that stores electrostatic energy. OK... what does that mean? Capacitors store an electrical charge, just like a battery, but the way the store the charge and their properties are very different. A battery uses chemicals to store a charge, while a capacitor uses an electrostatic field. What that means is they uses an electromagnetic field to store energy, very similar to static electricity. Again water does an excellent job as a visual, if you take a hose and this time put a water balloon on the end, fill it up, then take it off and open it what happens? The water that you just put into it comes shooting out. A capacitor acts the same way. Capacitors like resistors have different ratings, voltage, farads, and ESR (Equivalent Series Resistance).
+
+Voltage
+
+All capacitors have a voltage rating. This is the maximum voltage you can apply to the capacitor without it going BOOM!, or simply not working anymore. Image if you left the water balloon on the hose and turned on the hose on full, once it got full it would pop. This is because inside a capacitor are two metal plates that are separated by a very thin insulator.The two plates can not touch, but the closer they are the more electrons the capacitor can store. However if you apply too high of a voltage the electrons will have enough driving force to jump across the insulator. Always stay under the rated voltage. The rule of thumb is to use a capacitor rated at twice the voltage it will ever see, so for a 5V circuit you would use a 10V capacitor.
+
+Farads
+
+Farads is the measure of how big of a charge a capacitor can store. Most capacitors are rated in microfarads (µF, often typed as uF), 1/1,000,000 of a farad. This is very similar to how big the water balloon is, the larger it is the more water it can store. The size of the capacitor, generally, will increase with a higher farads or a higher voltage rating.
+
+Joules
+
+Joules is a measure of the amount of energy stored in the capacitor. This is not used in most things, but is included for reference. 1J = 1W for 1 second. So if the capacitor stored 1J then it could supply 1V at 1A for one second before running out of power. To calculate joules you use the formula J=V^2*F*0.5, where J=joules, V=voltage, and F=farads. I almost never use that formula, instead I use J=V^2*µF*0.5*10^-6, with this you can use µF instead of farads.
+
+ESR
+
+ESR is used to show how fast a capacitor can be charged or discharged. This is the largest difference between a battery and a capacitor. A capacitor can dump all of it's power almost instantly while if you shorted a battery (don't do it) it could take hours to completely discharge. That is because a capacitor uses an electrostatic field to store the energy, that can easy dump its energy. A battery, on the other hand, uses chemicals in an electrochemical reaction to produce electricity. The amount of power the battery can discharge is relatively small compared to the amount of power stored.
+
+Types of Capacitors
+
+There are many types of capacitors, I will cover the four main types here. This includes ceramic, electrolyte, tantalum, and super capacitors. Each have the strengths and weaknesses that I will cover.
+
+Ceramic Capacitors
+
+Ceramic capacitors are the most common capacitors. They are also the cheapest and generally the smallest. They are not polarized, which means that it does not matter which way you connect them. They have a low ESR, but relatively low farads. They are commonly used for noise reduction.
+
+Ceramic Capacitor
+
+Electrolyte Capacitors
+
+Another very common capacitor, the electrolyte capacitor. These capacitors are usually larger then their ceramic counterparts, they have a higher ESR so they can not be charged/discharged as fast, and generally have a lower voltage rating. So why would anyone want them? They are fairly cheap for starters, but their main selling point is that they have a high farad rating. These capacitors are polarized and must be charged a specific way. Look at the picture below, see the silver stripe? That is used to show which pin is connected to ground. Also notice how one pin is longer then the other? The longer one is the + pin while the shorter one connects to - or ground.
+
+Electrolyte Capacitor
+
+Tantalum Capacitors
+
+Tantalum capacitors look almost identical to ceramic capacitors. They are high performance capacitors. Usually they don't have as high of farad rating as electrolyte capacitors, but they have a very low ESR. They can be charged/discharged extremely fast, because of this they are commonly used in switching regulators. This high performance comes at a price, they are usually much more expensive than ceramic capacitors, around 4-5x more. Tantalum capacitors are polarized and the + side is usually marked by a little + next to the pin.
+
+Tantalum Capacitor
+
+Super Capacitors
+
+Super capacitors are the bridge between capacitors and batteries. They have extremely high farad ratings up to a few 1000F! That is F not µF! However they have a very low voltage rating, around 2.1V. They also have a high ESR, much higher than electrolyte capacitors. They look identical to electrolyte capacitors, except they are generally bigger. They are polarized and they are marked with a stripe like the electrolyte capacitors.
+
+Super Capacitor

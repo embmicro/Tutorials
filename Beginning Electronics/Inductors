@@ -1,0 +1,17 @@
+The inductor tutorial! So you want to know what an inductor is? An inductor is a coil of wire, normally around a ferrous, magnetic, core. They come in all shapes and sizes, but the most common ones are called toroids. Toroids consist of a ferrous ring with a hold in the center where wire is wrapped around. They look something like this.
+
+Inductor
+
+What does an inductor do? An inductor stores electrical energy in the form of a magnetic field. An inductor can be though of as a large water wheel in a river. Where the river starts flowing and the water wheel is stopped it resists the flow of water until it starts to move and is up to speed with the river. If the river stops the momentum of the water wheel will continue to make it spin pushing the water forward for a short amount of time. An inductor does pretty much that. When electricity first pases though the inductor there is a large resistance until its magnetic field is up. Once the power stops flowing the magnetic field collapses into the inductor forcing the electricity forward until the field has completely collapsed.
+
+Voltage Changes
+
+When the field collapses, if there is no path for the electricity, the collapsing field makes to go the voltage will build up until it dissipates somewhere, either thought the inductor itself or through another circuit. This is useful in generating higher voltages. If you have a AA battery, 1.5V, and your circuit needs 5V you can use a boost converter to generate the higher voltage. Remember that when boosting voltage the current goes down, so you do not gain any power, you actually lose some as the efficiency is not 100%. To generate a higher voltage the boost circuit switches the inductor on and off very fast. When it is on the power flows through the inductor to ground, but when it is off it flows from the inductor to the 5V circuit. There are special chips that monitor the voltage so you get a nice 5V. You can get regulators for almost any voltage you will need. This property of inductors can also be used to generate high voltage, I used one to make 600V with 15V input.
+
+Transformers
+
+Transformers (aka "wall warts") use two or more inductors to convert voltage. Much like the single inductor regulators the transformer turns the inductor on and off. However they turn one inductor on and off and allow the magnetic field to collapse into the other. A wall wart uses the fact that the power in your home is AC voltage, it switches directions 60 times a second. Most transformers that regulate 120AC have an inductor connected directly to the outlet and another that the field collapses into.
+
+Chokes
+
+Chokes are inductors that are used to smooth the current flow. When there is a larger flow then it uses is to build up the magnetic field, but when there is lower amount part of the field collapses effectively smoothing it out.

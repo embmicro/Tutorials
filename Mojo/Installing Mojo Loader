@@ -1,0 +1,55 @@
+Mojo Loader
+This program will be used to load the .bin files you create with ISE to the Mojo.
+
+Download the version of the loader for your operating system. 
+
+Linux 32 bit
+Linux 64 bit
+Windows
+Please note the Mojo Loader has been updated to version 1.1.2 to support the Mojo V2 and V3.
+
+Extract the files to where you would like to install it.
+
+Linux
+
+If you are using Linux you need to have a JRE version 7 or newer to run this. On Ubuntu you can enter
+
+sudo apt-get install openjdk-7-jre-headless
+You will also need to be a member of the dialout group to be able to use the serial port. You can add yourself by entering this line.
+
+sudo usermod -a -G dialout `whoami`
+You will have to logout or restart your computer for that to take effect.
+
+Windows
+
+The V2 of the Mojo features a USB port which uses Window's built in driver for USB->Serial devices. However, by default Windows will not recognize the Mojo. You will need to point it to the driver.
+
+If you are using Windows 8 you will need to disable driver signature enforcement. You can find instructions on how to do this here.
+
+After you've extracted the files for the program to where you'd like to keep it, you need to plug in your Mojo. Windows should pop up a message saying it can't find the driver for your device. 
+
+Open the Device Manager (for Windows 7, Start->Contol Panel->Hardware and Sound->Device Manager). You should see Mojo V2 listed under Other devices with a yellow triangle.
+
+Device Manager
+
+Right click on Mojo V2 and select Properties. On the top of the new window you should have three tabs. Click the Driver tab.
+
+Under the Driver tab you should have a button labled Update Driver... click that.
+
+In the new windows choose Browse my computer for driver software.
+
+Use the Browse... button to select the root folder for your Mojo Loader install. The folder name should be mojo-loader-x.x.x where the x is the version number.
+
+Click Next. You will get a warning saying Windows can't verify the publisher of the driver. Click Install this driver software anyway.
+
+Once it is done, you should get a message saying Windows has installed the driver for Mojo CDC-ACM Virtual Serial Port.
+
+Go ahead and close the windows. Your Device Manager should now look like this.
+
+Driver Installed
+
+Take note of the COM port the Mojo was assigned as you will need to specify it to the Mojo Loader. In this case it is COM8, but yours may vary.
+
+Source Code
+
+The source code for the loader can be found at https://code.google.com/p/mojo-ide/
