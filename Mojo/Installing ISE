@@ -1,20 +1,20 @@
-ISE is a program created by Xilinx to support their FPGAs. It includes a bunch of other tools that will be useful for creating your projects. ISE is required to do any work becuase it is what actually synthesizes your designs into bit files that can be loaded onto the Mojo.
+ISE is a program created by Xilinx to support their FPGAs. It includes a bunch of other tools that will be useful for creating your projects. ISE is required to do any work because it is what actually synthesizes your designs into bit files that can be loaded onto the Mojo.
 
 The process is fairly long, but it shouldn't be too tricky if you follow these instructions. These instructions were written for ISE 14.5 and tested on Ubuntu 12.04, Ubuntu 12.10, Linux Mint, Windows 7, and Windows 8.
 
-First click here to go to the Xilinx downloads page. Under version select the newest (14.5 at the time of writing). Scroll down a bit until you see ISE Design Suite. Under that header you should see full installers for windows and linux. Choose the one for the system you are installing ISE on.
+First click here to go to the Xilinx downloads page. Under "Version" select the newest (14.5 at the time of writing). Scroll down a bit until you see ISE Design Suite. Under that header you should see full installers for Windows and Linux. Choose the one for the system you are installing ISE on.
 
 You will then be prompted to login. If you don't have an account, create one. Once you have logged in the download should start.
 
 If you have Java installed, you may be prompted to use their "Download Manager", if not it will just start like any other download. The method you use does not make a difference; however, if you have problems with the download manager you can disable Java in your browser and try again to prevent it from using it.
 
-The file is big, about 6.5GB, so make sure you have plenty of space!
+The file is big, about 6.5GB, so make sure you have plenty of space! (Also, the installation requires a further 16GB of space.)
 
 Once the file is downloaded you need to decompress it. The file is a tar file so if you are on Windows you will need to install something like WinZip.
 
 For Windows, just open the folder and double click on xsetup to start the installation.
 
-For Linux, you will need to open up a terminal and cd into the directory you extracted the files. Then run the setup with sudo ./xsetup.
+For Linux, you will need to open up a terminal and cd into the directory where you extracted the files. Then run the setup with sudo ./xsetup.
 
 Once in the setup, accept all the license agreements. Once you are on the page that asks which edition to install, choose the ISE WebPACK option and click next.
 
@@ -42,7 +42,7 @@ If you are a Windows user you can stop here. However, if you are using Linux the
 
 Windows 8 64bit
 
-To get your license installed in Windows 8 you need to create a folder in the root of your home drive (usually C). Name the folder .xilinx. note both dots. Once you made the folder it should show up as .xilinx (no trailing dot). For whatever reason, Windows requires you to have that trailing dot and it removes it automatically. Once you have that folder created just drop your Xilinx.lic file into it. ISE should now find the license file and open without complaints.
+To get your license installed in Windows 8 you need to create a folder in the root of your home drive (usually C). Name the folder ".xilinx." Note both dots. Once you made the folder it should show up as .xilinx (no trailing dot). For whatever reason, Windows requires you to have that trailing dot and it removes it automatically. Once you have that folder created just drop your Xilinx.lic file into it. ISE should now find the license file and open without complaints.
 
 The 64bit version of ISE doesn't work correctly in Windows 8. Every time it tries to open a file dialog it crashes. To fix this you need to use the 32bit version.
 
@@ -58,7 +58,7 @@ If you would like a shortcut on your start screen, rename the file you just past
 
 Pin ISE to Windows 8 Start
 
-Once it is pinned you need to rename it back to ise. I found that trick of renaming, pinning, change name back to be useful to make the laucher on the start page.
+Once it is pinned you need to rename it back to ise. I found that trick of renaming, pinning, change name back to be useful to make the launcher on the start page.
 
 Creating a launcher in Linux
 

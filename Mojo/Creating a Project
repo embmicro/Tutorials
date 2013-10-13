@@ -73,21 +73,21 @@ You may have noticed this line.
     output[7:0]led,
 This is not a single output but actually 8! You can create an array of wires (or regs)  by using those brackets. What [7:0] actually means is that led will be an array of eight wires that have an index from 7 down to 0, inclusive. 
 
-It is possible to do [8:1] or [0:7], but unless you have a very very good reason for doing that then you should stick to the convention. Mixing what you used as a base index and the order can create major head-aches.
+It is possible to do [8:1] or [0:7], but unless you have a very very good reason for doing that then you should stick to the convention. Mixing what you used as a base index and the order can create major headaches.
 
 Declaring a wire
 
 This brings us to the first line after the port declaration. 
 
 wire rst = ~rst_n;
-This line we are declaring a new wire called rst and assigning it a value.
+In this line we are declaring a new wire called rst and assigning it a value.
 
 It is a common convention to name signals that are active low (meaning a 0 is active) by appending _n to the end of their name. Following that convention, rst_n is active low, but we want an active high signal. To make rst an active high version of rst_n we can just invert rst_n. The ~ operator is the not operator. 
 
 In this case, we are declaring a one bit wire. However, you can declare an array of wires (sometimes also called an n-bit wire where n is the width of the array) with the following line.
 
 wire [9:0] array;
-In this case, we now have a 10-bit wire called array. Notice here I did not assign it a value.
+In this case, we would now have a 10-bit wire called array. Notice here I did not assign it a value.
 
 Assigning a value
 
@@ -106,7 +106,7 @@ Now you may be looking at the assign statements and thinking "what the *&$(* kin
 
 In this case, since we are not using the spi signals we disconnect them because driving them incorrectly could damage the microcontroller. 
 
-Now, lets look at the last line. This is the one we care about. Right now we are just assigning led to be all 0s. That means all the LEDs will always be off! What fun is that? Let's make a small modification to that line.
+Now, let's look at the last line. This is the one we care about. Right now we are just assigning led to be all 0s. That means all the LEDs will always be off! What fun is that? Let's make a small modification to that line.
 
 assign led[6:0] = 7'b0;
 assign led[7] = rst;
@@ -140,4 +140,4 @@ If it doesn't work, make sure you have the correct port selected and the board i
 
 Once it has transferred, try pressing the reset button. When you push the button the LED closest to the button should light up.
 
-Congratulations you've completed your first project!
+Congratulations, you've completed your first project!
