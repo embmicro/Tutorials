@@ -11,11 +11,11 @@ It is pretty easy to update the Mojo in Ubuntu using dfu-programmer.
 First you need to install dfu-programmer. Open a terminal and enter
 
 sudo apt-get install dfu-programmer
-You also need to download the following file and place it in /etc/udev/rules.d. You will need super user rights to do this.
+You also need to download the following file and place it in /etc/udev/rules.d. You will need superuser privileges to do this.
 
 Mojo USB Rules
 
-Once you add the rules file, you will need to unplug and re-plug the Mojo to have it take affect. 
+Once you add the rules file, you will need to unplug and re-plug the Mojo to have it take effect. 
 
 Jump down to Entering Bootloader Mode for instructions on how to get the Mojo into bootloader mode.
 
@@ -38,7 +38,7 @@ There are two flavors of FLIP, one with a Java Runtime included and one without.
 
 Once you've installed FLIP, jump down to Entering Bootloader Mode for instructions on how to get the Mojo into bootloader mode.
 
-Windows may or may not find the driver for you Mojo. If it doesn't, open the Device Manager. It should look similar to below.
+Windows may or may not find the driver for your Mojo. If it doesn't, open the Device Manager. It should look similar to below.
 
 Device Manager
 

@@ -18,11 +18,11 @@ sudo apt-get install openjdk-7-jre-headless
 You will also need to be a member of the dialout group to be able to use the serial port. You can add yourself by entering this line.
 
 sudo usermod -a -G dialout `whoami`
-You will have to logout or restart your computer for that to take effect.
+You will have to log out or restart your computer for that to take effect.
 
 Windows
 
-The V2 of the Mojo features a USB port which uses Window's built in driver for USB->Serial devices. However, by default Windows will not recognize the Mojo. You will need to point it to the driver.
+The V2 of the Mojo features a USB port which uses Windows's built in driver for USB->Serial devices. However, by default Windows will not recognize the Mojo. You will need to point it to the driver.
 
 If you are using Windows 8 you will need to disable driver signature enforcement. You can find instructions on how to do this here.
 
@@ -34,7 +34,7 @@ Device Manager
 
 Right click on Mojo V2 and select Properties. On the top of the new window you should have three tabs. Click the Driver tab.
 
-Under the Driver tab you should have a button labled Update Driver... click that.
+Under the Driver tab you should have a button labeled Update Driver... click that.
 
 In the new windows choose Browse my computer for driver software.
 
