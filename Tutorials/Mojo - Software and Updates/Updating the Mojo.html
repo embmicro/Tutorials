@@ -1,0 +1,69 @@
+<p><span style="color: #ff0000;">Mojos shipped in 2014 or later have the Arduino compatible bootloader. If your Mojo does not have the Arduino compatible bootloader, we recommend upgrading it. Please visit </span>{{widget type="cms/widget_page_link" anchor_text="this page for more instructions" template="cms/widget/link/link_inline.phtml" page_id="50"}}<span style="color: #ff0000;">.</span></p>
+<p>On the Mojo there is a microcontroller that provides most of the core functionality. As we improve the firmware for the microcontroller by fixing bugs and adding new features, you can update the Mojo by following this tutorial. The microcontroller has a USB bootloader so it is easy to update yourself.</p>
+<h2>Mojo IDE</h2>
+<p>If you are using the <a href="/tutorials/mojo-software-and-updates/mojo-ide">Mojo IDE</a>, simply click&nbsp;<strong>Tools-&gt;Flash Firmware...</strong> to flash the latest firmware.</p>
+<h2>Manual Update</h2>
+<p>First you will need to download the latest firmware. The latest firmware was posted on&nbsp;<strong>March 2, 2016</strong>.</p>
+<ul>
+    <li><a href="{{media url="wysiwyg/mojo-loader/Mojo-v3-Loader-1.2.6.hex"}}">Mojo V3 Firmware (ATmega32U4)</a></li>
+    <li><a href="{{media url="wysiwyg/mojo-loader/Mojo-v2-Loader-1.2.6.hex"}}">Mojo V2 Firmware (ATmega16U4)</a></li>
+</ul>
+<p>The latest update includes some patches to the serial interface to the FPGA which requires you to use the updated <a href="https://github.com/embmicro/mojo-base-project/archive/master.zip">Mojo Base Project</a>. These changes ensure no bytes are dropped.</p>
+<p><span style="color: #ff0000;">Note that this firmware update requires {{widget type="cms/widget_page_link" anchor_text="Mojo Loader" template="cms/widget/link/link_inline.phtml" page_id="24"}} Version 1.2.0 or greater.</span></p>
+<p>If you would like to revert to a previous version, the legacy firmware below is the firmware released before the move to the Arduino based code.</p>
+<p><a href="{{media url="wysiwyg/mojo-loader/Mojo-Loader-legacy.hex"}}">Legacy Mojo Firmware (V2 or V3)</a></p>
+<h2>Arduino Compatible Mojo Instructions</h2>
+<p>The easiest way to update the firmware when an Arduino compatible Mojo is to simply setup the Arduino IDE and grab the latest code from the GIT repository. Instructions for doing this can be found on the {{widget type="cms/widget_page_link" anchor_text="Arduino setup page" template="cms/widget/link/link_inline.phtml" page_id="49"}}.</p>
+<p>However, if you want to just flash the hex without installing the Arduino IDE and applying the modifications, you can use&nbsp;<strong>avrdude</strong> to program it.</p>
+<h3>Ubuntu</h3>
+<p>It's really easy to update using Linux. Simply install&nbsp;<strong>avrdude</strong> by typing the following.</p>
+<pre class="brush:bash">sudo apt-get install avrdude</pre>
+<p>Then navigate to the folder with the hex file and run avrdude.&nbsp;<strong>Before</strong> you run avrdude, make sure you get the Mojo in bootloader mode by temporarily shorting the pins shown at the bottom of the page.</p>
+<pre class="brush:bash">avrdude -P /dev/ttyACM0 -c avr109 -p m32u4 -U flash:w:Mojo-v3-Loader-1.2.5.hex</pre>
+<p class="brush:bash">Make sure to change&nbsp;<strong>/dev/ttyACM0</strong> to the correct port for the Mojo!</p>
+<p class="brush:bash">The hex should now be loaded on the Mojo!</p>
+<h3 class="brush:bash">Windows</h3>
+<p>Head over to SourceForge and download <a href="http://sourceforge.net/projects/winavr/" target="_blank">WinAVR</a>.</p>
+<p>After it's installed click Start-&gt;Run and type&nbsp;<strong>cmd</strong> to open a command prompt.</p>
+<p>Navigate to where the hex file is and enter the following.&nbsp;<strong>Before</strong>&nbsp;you run avrdude, make sure you get the Mojo in bootloader mode by temporarily shorting the pins shown at the bottom of the page.</p>
+<pre class="brush:bash">avrdude -P COM4 -c avr109 -p m32u4 -U flash:w:Mojo-v3-Loader-1.2.5.hex</pre>
+<p>Make sure to change&nbsp;<strong>COM4</strong> to the port the Mojo is connected to. Note that this port may change after you put the Mojo is bootloader mode. It will only stay in bootloader mode for about 15-20 seconds and it will show up in the Device Manger as&nbsp;<strong>Mojo V3 bootloader</strong>. If you miss the bootloader window, simply short the pins again to re-enter it.</p>
+<p>&nbsp;The hex should noe be loaded on the Mojo!</p>
+<h2>Legacy Mojo Instructions</h2>
+<h3>Ubuntu</h3>
+<p>It is pretty easy to update the Mojo in Ubuntu using&nbsp;<strong>dfu-programmer</strong>.</p>
+<p>First you need to install dfu-programmer. Open a terminal and enter</p>
+<pre class="brush:bash">sudo apt-get install dfu-programmer</pre>
+<p>You also need to download the following file and place it in&nbsp;<strong>/etc/udev/rules.d</strong>. You will need superuser privileges to do this.</p>
+<p><a href="{{media url="wysiwyg/mojo/99-mojo.rules"}}">Mojo USB Rules</a></p>
+<p>Once you add the rules file, you will need to unplug and re-plug the Mojo to have it take effect.&nbsp;</p>
+<p>Jump down to&nbsp;<strong>Entering Bootloader Mode</strong> for instructions on how to get the Mojo into bootloader mode.</p>
+<p>You can now update the Mojo with the following commands.</p>
+<pre class="brush:bash">dfu-programmer atmega32u4 erase
+dfu-programmer atmega32u4 flash /path/to/hex/file/Mojo-Loader-1.2.5.hex
+dfu-programmer atmega32u4 start</pre>
+<p>Note that if you have a Mojo V2 the board probably has an ATmega16U4 microcontroller and not an ATmega32U4. In that case, replace&nbsp;<strong>atmega32u4</strong> with&nbsp;<strong>atmega16u4</strong> in the above commands.</p>
+<p>The firmware is now updated.</p>
+<h3>Windows</h3>
+<p>To update the Mojo in Windows you will need to download FLIP.</p>
+<p><a href="http://www.atmel.com/tools/FLIP.aspx" target="_blank">FLIP Download Page</a></p>
+<p>There are two flavors of FLIP, one with a Java Runtime included and one without. Either will work as long as you have Java installed on your computer. If you are unsure if you have Java or not, download the one with the Runtime included.</p>
+<p>Once you've installed FLIP, jump down to&nbsp;<strong>Entering Bootloader Mode</strong> for instructions on how to get the Mojo into bootloader mode.</p>
+<p>Windows may or may not find the driver for your Mojo. If it doesn't, open the Device Manager. It should look similar to below.</p>
+<p><img alt="Device Manager" src="{{media url="wysiwyg/mojo-loader/bootloader-no-driver.png"}}" /></p>
+<p>Right click on the&nbsp;<strong>ATm32U4DFU</strong> or&nbsp;<strong>ATm16U4DFU</strong>, depending on your Mojo, and click&nbsp;<strong>Update Driver Software...</strong>&nbsp;</p>
+<p>Then choose&nbsp;<strong>Browse my computer for driver software</strong> and fill in the path to where you installed FLIP. Select the sub-folder&nbsp;<strong>usb</strong>.</p>
+<p><img alt="Driver Path" src="{{media url="wysiwyg/mojo-loader/bootloader-driver-path.png"}}" /></p>
+<p>Click <strong>Next</strong> and install the driver.</p>
+<p>Once the driver is installed, launch FLIP.</p>
+<p>Click on the chip icon in the upper left corner and choose the microcontroller your Mojo has. If you have a Mojo V2 chances are you have an ATmega16U4, although some have ATmega32U4's. If you have a Mojo V3 you have an ATmega32U4.</p>
+<p>Click on the icon of the USB cable and choose&nbsp;<strong>USB</strong> then&nbsp;<strong>Open</strong>.</p>
+<p>Next, click on the red book that has the red arrow pointing into it. When you hover over it with your mouse it should say <strong>Load HEX File</strong>. Select the <strong>Mojo-Loader-1.2.hex</strong> file you downloaded.</p>
+<p><img alt="Load Hex File" src="{{media url="wysiwyg/mojo-loader/bootloader-load-hex.png"}}" /></p>
+<p>Finally click on&nbsp;<strong>Run</strong>. Once that finishes click&nbsp;<strong>Start Application</strong>. The firmware is now updated!</p>
+<h2>Entering Bootloader Mode</h2>
+<p>To program the microcontroller you need to get it into bootloader mode.</p>
+<p>First plug the Mojo into your computer. With the Mojo still powered on, flip it over so you see the six little pads above the last O in Mojo. You need to momentarily connect the two leftmost pads. A jumper wire works well for this. Connecting these pads resets the microcontroller and on restart it will enter the bootloader.</p>
+<p>The image below shows the pins to connect.</p>
+<p><img alt="Mojo Bootloader Pins" src="{{media url="wysiwyg/mojo-loader/mojo-v3-bootloader.jpg"}}" /></p>
+<p>Once you tap those together it should be in bootloader mode. Jump back to your operating system's section.</p>

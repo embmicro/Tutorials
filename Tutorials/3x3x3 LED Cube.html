@@ -1,0 +1,102 @@
+<p>Our 3x3x3 RGB LED Cube was developed as a kit by us, but is now being made and sold directly through <a href="https://www.sparkfun.com/" target="_blank">SparkFun Electronics</a>. Be sure to check out its <a href="https://www.sparkfun.com/products/9867" target="_blank">product page</a> and pick one up.</p>
+<p>The source code, both as a standalone project and as an Adruino project, are available from the <a href="https://www.sparkfun.com/products/9867" target="_blank">product page</a>.</p>
+<p>This tutorial will give a general description of how the code works as well as how to modify it for your own custom patterns.</p>
+<h3>File Overview</h3>
+<p>The code consists of four main sections, the main file (<b>main.c</b> or <b>cube.ino</b>), hardware drivers and descriptions (<b>hardware.c/h</b>), display driver (<b>driver.c/h</b>), and the patterns (<b>patterns.c/h</b>).</p>
+<p>To make the cube perform your own custom patterns you only need to add a function to <b>patterns.c/h</b> and call it from the main file.</p>
+<p>Since the main file is starting point of execution lets start there.</p>
+<h3>The Main File</h3>
+<p>The main file is fairly small and simply consists of some initialization then an endless while loop.</p>
+<p>Take a look at the initialization.</p>
+<pre class="brush:c;first-line:9">init_ports();
+USART_Init(21); //baud 115200
+init_timer1(); //set up the timer and start the main interrupt
+display_colors(3000);
+</pre>
+<p>The first line sets all the directions of the IO pins.</p>
+<p>The second line is used to initialize the serial port in the case that it is used to control the cube.</p>
+<p>The third line sets up the timer used to keep the cube display refreshed. Since the display driver uses interrupts, you don't have to worry about  calling some function periodically.</p>
+<p>The last line just shows a nifty test pattern to make sure your cube is working. If you don't like the delay when you plug your cube in you can comment out this line.</p>
+<p>Now onto the while loop!</p>
+<pre class="brush:c;first-line:13">while (1)
+{
+  //serial_control();
+  plasma(750);
+  corner_expand(35);
+  rain(500);
+  worm(150);
+  flash_rand(100);
+}
+</pre>
+<p>All that this code does is simply call the pattern functions. You can rearrange the function calls to allow for different execution order, or even get fancy and randomize them. The arguments to each function dictate how long it will run.</p>
+<p>The first line that is commented out, <b>serial_control()</b> is used to make the cube listen to the serial port. If you uncomment this line the code will get stuck in the <b>serial_control()</b> method and none of the other patterns will execute. However, it can be cool to use to connect to your computer and do something like the following video.</p>
+<p><div class="video-container"><iframe src="//www.youtube.com/embed/F0Nq_V9VGqc?rel=0" frameborder="0" width="680" height="382"></iframe></div></p>
+<p>In this video, the song is being analyzed as it plays and generating a visual for the cube. The pluggin runs on Linux and its source is avaible <a href="{{media url="wysiwyg/LED-Cube/pulse.zip"}}">here</a>.</p>
+<h3>Driver Functions</h3>
+<p>Before we get into how to create your own patterns, there are a handful of helper functions in the <b>driver.h</b> file to checkout.</p>
+<pre class="brush:c;first-line:11">void clear_buffer (void);
+/* clear_buffer simply writes 0 to all of cube_buf */
+
+void fill_buffer (uint8_t r,uint8_t g,uint8_t b);
+/* fill_buffer fills the buffer with the color defined by r g and b */
+
+void tint_buffer (uint8_t r,uint8_t g,uint8_t b);
+/* tint_buffer adds r g and b to the whole buffer */
+
+void display_buffer (void);
+/* dispaly_buffer copies cube_buf to clear_buf */
+
+uint8_t put_XYZ (uint8_t x,uint8_t y,uint8_t z,uint8_t r,uint8_t g,uint8_t b);
+/* put_XYZ changes the color of the LED at the 3D coordinate defined by
+x y and z to the color defined by r g and b. */
+
+uint8_t mix_XYZ (uint8_t x,uint8_t y,uint8_t z,uint8_t r,uint8_t g,uint8_t b);
+/* mix_XYZ does the same thing as put_XYZ but it adds the color to the
+existing color in cube_buf instead of over writing it */
+
+uint8_t single_XYZ (uint8_t x,uint8_t y,uint8_t z,uint8_t color,uint8_t value);
+/* single_XYZ is the same as mix_XYZ but it only changes one color defined
+by color, 0=red 1=green and 2=blue. The value added is defined by value. */
+
+void delay_ms(uint16_t ms);
+/* delay_ms delays for "ms" amount of ms. This is more accurate than _delay_ms() as
+it is based off the ISR timer. */
+
+void delay_vblank(uint16_t blanks);
+/* delay_vblank gives an easy way to make sure the full image was displayed before
+updating the buffer.
+
+blanks is the number of frames to wait before returning. 60 is around 1 second */
+
+void start_vblank(uint16_t blanks);
+/* start_vblank is used to set how many blanks should happen once end_vblank is called.
+By having two separate functions you can start the delay, generate the frame, then
+delay the remaining time so you get the same delay regardless of the time it takes
+to generate the frame */
+
+void end_vblank(void);
+/* waits out the remaining time from start_vblank */</pre>
+<p>These should be used by your functions in <b>patterns.c/h</b> to generate frames.</p>
+<p>The only functions that may not be obvious what they do is the <b>vblank</b> methods. </p>
+<p><b>delay_vblank()</b> is used to simply delay a specified number of frames. If you want to ensure that your pattern is displayed for at least a full frame this is the method to use. If you are simply trying to delay for a set amount of time, you should use <b>delay_ms()</b>.</p>
+<p>The functions <b>start_vblank</b> and <b>end_vblank</b> are useful for setting the frame rate you want your pattern to run at. It is similar to <b>delay_vblank</b> except that <b>start_vblank</b> will return immediately. When you call <b>end_vblank</b>, it will return only once a set number of frames have been rendered since <b>start_vblank</b> as called. That allows you to generate a new frame while keeping track of the time between frames. If your code takes longer than the specified number of frames, <b>end_vblank</b> will simply return.</p>
+<p>You should only use the delay functions provided here. The built in delay functions, like <b>_delay_ms()</b>, will not work due to the interrupts. They will delay for much longer than expected and can even vary in delay length. The provided <b>delay_ms()</b> function will be much more accurate.</p>
+<h3>Patterns</h3>
+<p>To help show how you can create your own patterns, lets take a look at <b>flash_rand</b>.</p>
+<pre class="brush:c;first-line:61">void flash_rand (uint16_t len)
+{
+  uint16_t ctr=0;
+  for (ctr=0;ctr&lt;len;++ctr)
+  {
+    fill_buffer(rand() % MAX_COLOR,rand() % MAX_COLOR,rand() % MAX_COLOR);
+    display_buffer();
+    delay_ms(300);
+  }
+}
+</pre>
+<p>This code simply fills the cube with a solid random color over and over again.</p>
+<p>Notice the use of the <b>MAX_COLOR</b> constant. This is the greatest value you should supply and will result in that channel of the LED being fully on. In the current code this value is 50. It can be tweaked to increase the frame rate or increase the color depth. If you increase the color depth too much you will start to see the cube flicker. 50 was found to be a nice compromise.</p>
+<p>The cube is double buffered, meaning whatever pattern you draw will not actually be shown until you call <b>display_buffer()</b>. Once <b>display_buffer()</b> is called the frame you were working on will be copied into the driver's own display buffer. <b>Don't forget to call display_buffer() when you have a new frame</b>.</p>
+<p>When you flip the buffer, it will still be dirty. You can use <b>clear_buffer()</b> to set it to black if you need to.</p>
+<p>Once you add a function to <b>patterns.c</b> don't forget to add its prototype to <b>patterns.h</b> and add it to the while loop in the main file.</p>
+<p>Hopefully this gives you enough information to start playing with your LED cube and make some awesome patterns!</p>

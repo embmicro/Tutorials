@@ -1,0 +1,274 @@
+<p>&nbsp;Asynchronous serial&nbsp;communication, often shortened to just <strong>serial</strong>, is one of the easiest ways to communicate between two different devices. In it's simplest form, it consists of just two connections. One line for sending data and the other for receiving data.&nbsp;</p>
+<p>There are many variations on the classic serial bus, but this tutorial will cover just the basics. You should be able to communicate with most serial devices including a computer.</p>
+<h3>Baud Rate</h3>
+<p>As the name implies, this protocol is&nbsp;<strong>asynchronous</strong>. All that means is that there is no shared clock. To get around not having a clock, both devices need to agree to the rate that data can be transmitted. The rate that data is sent is known as the <strong>baud rate</strong>. The unit for&nbsp;baud rate is <strong>bits/sec</strong> and this indirectly sets the width of each bit.</p>
+<p>In theory, you can use any baud rate that you like. However, to make it easier to setup devices, there are a handful of standard baud rates. In most cases you will be using one of the following rates.</p>
+<table style="max-width: 175px;">
+    <tbody>
+        <tr><th style="text-align: center;">Baud Rates (bits/sec)</th></tr>
+        <tr>
+            <td style="text-align: center;">4800</td>
+        </tr>
+        <tr>
+            <td style="text-align: center;">9600</td>
+        </tr>
+        <tr>
+            <td style="text-align: center;">14400</td>
+        </tr>
+        <tr>
+            <td style="text-align: center;">19200</td>
+        </tr>
+        <tr>
+            <td style="text-align: center;">28800</td>
+        </tr>
+        <tr>
+            <td style="text-align: center;">38400</td>
+        </tr>
+        <tr>
+            <td style="text-align: center;">56000</td>
+        </tr>
+        <tr>
+            <td style="text-align: center;">57600</td>
+        </tr>
+        <tr>
+            <td style="text-align: center;">115200</td>
+        </tr>
+        <tr>
+            <td style="text-align: center;">128000</td>
+        </tr>
+        <tr>
+            <td style="text-align: center;">153600</td>
+        </tr>
+        <tr>
+            <td style="text-align: center;">230400</td>
+        </tr>
+        <tr>
+            <td style="text-align: center;">256000</td>
+        </tr>
+    </tbody>
+</table>
+<h3>Start and Stop Bits</h3>
+<p>Another side effect of not having a clock is the need for start and stops bits. A serial port typically sends data out in packets of 8 bits, or a byte. Since it is asynchronous, you never know when the other device will send a byte!</p>
+<p>To let the receiver know you are going to send a byte, a <strong>start bit</strong> is sent. This is simply a single&nbsp;bit with the value of <strong>0</strong>.&nbsp;</p>
+<p>Similarly, after the byte has been sent out, a&nbsp;<strong>stop bit</strong> is sent. Typically one stop bit is sent, but sometimes two are sent. Stop bits have the value of&nbsp;<strong>1</strong>.</p>
+<p>To better understand what goes on, take a look at this example transmission.</p>
+<p><img src="{{media url="wysiwyg//serial/serial.png"}}" alt="Example Serial Transmission" /></p>
+<p>This is a transmission of the character&nbsp;<strong>'a'</strong> which has an&nbsp;<a href="http://en.wikipedia.org/wiki/ASCII" target="_blank">ASCII</a>&nbsp;value of 97, or a binary value of 01100001.</p>
+<p>The serial line idles&nbsp;<strong>high</strong>, meaning when nothing is being sent it is held at the value&nbsp;<strong>1</strong>. This is why the start bit is 0, so the line transitions from high to low. This gives an indication that the line is active.</p>
+<p>You may have noticed that order of the bits is reversed. That is because the&nbsp;<strong>LSB</strong> (least-significant bit) is typically transmitted first.&nbsp;</p>
+<h3>The Transmitter</h3>
+<p>If you download the <a href="https://github.com/embmicro/mojo-base-project/archive/master.zip" target="_blank">Mojo Base Project</a>, in the source directory you will find a file named&nbsp;<strong>serial_tx.v</strong>. This is the serial transmitter used by the Mojo to communicate with the AVR.&nbsp;</p>
+<pre class="brush:verilog">module serial_tx #(
+    parameter CLK_PER_BIT = 50
+  )(
+    input clk,
+    input rst,
+    output tx,
+    input block,
+    output busy,
+    input [7:0] data,
+    input new_data
+  );
+
+  // clog2 is 'ceiling of log base 2' which gives you the number of bits needed to store a value
+  parameter CTR_SIZE = $clog2(CLK_PER_BIT);
+
+  localparam STATE_SIZE = 2;
+  localparam IDLE = 2'd0,
+    START_BIT = 2'd1,
+    DATA = 2'd2,
+    STOP_BIT = 2'd3;
+
+  reg [CTR_SIZE-1:0] ctr_d, ctr_q;
+  reg [2:0] bit_ctr_d, bit_ctr_q;
+  reg [7:0] data_d, data_q;
+  reg [STATE_SIZE-1:0] state_d, state_q = IDLE;
+  reg tx_d, tx_q;
+  reg busy_d, busy_q;
+  reg block_d, block_q;
+
+  assign tx = tx_q;
+  assign busy = busy_q;
+
+  always @(*) begin
+    block_d = block;
+    ctr_d = ctr_q;
+    bit_ctr_d = bit_ctr_q;
+    data_d = data_q;
+    state_d = state_q;
+    busy_d = busy_q;
+
+    case (state_q)
+      IDLE: begin
+        if (block_q) begin
+          busy_d = 1'b1;
+          tx_d = 1'b1;
+        end else begin
+          busy_d = 1'b0;
+          tx_d = 1'b1;
+          bit_ctr_d = 3'b0;
+          ctr_d = 1'b0;
+          if (new_data) begin
+            data_d = data;
+            state_d = START_BIT;
+            busy_d = 1'b1;
+          end
+        end
+      end
+      START_BIT: begin
+        busy_d = 1'b1;
+        ctr_d = ctr_q + 1'b1;
+        tx_d = 1'b0;
+        if (ctr_q == CLK_PER_BIT - 1) begin
+          ctr_d = 1'b0;
+          state_d = DATA;
+        end
+      end
+      DATA: begin
+        busy_d = 1'b1;
+        tx_d = data_q[bit_ctr_q];
+        ctr_d = ctr_q + 1'b1;
+        if (ctr_q == CLK_PER_BIT - 1) begin
+          ctr_d = 1'b0;
+          bit_ctr_d = bit_ctr_q + 1'b1;
+          if (bit_ctr_q == 7) begin
+            state_d = STOP_BIT;
+          end
+        end
+      end
+      STOP_BIT: begin
+        busy_d = 1'b1;
+        tx_d = 1'b1;
+        ctr_d = ctr_q + 1'b1;
+        if (ctr_q == CLK_PER_BIT - 1) begin
+          state_d = IDLE;
+        end
+      end
+      default: begin
+        state_d = IDLE;
+      end
+    endcase
+  end
+
+  always @(posedge clk) begin
+    if (rst) begin
+      state_q &lt;= IDLE;
+      tx_q &lt;= 1'b1;
+    end else begin
+      state_q &lt;= state_d;
+      tx_q &lt;= tx_d;
+    end
+
+    block_q &lt;= block_d;
+    data_q &lt;= data_d;
+    bit_ctr_q &lt;= bit_ctr_d;
+    ctr_q &lt;= ctr_d;
+    busy_q &lt;= busy_d;
+  end
+
+endmodule</pre>
+<p>The parameter&nbsp;<strong>CLK_PER_BIT</strong> is used to set the baud rate. To calculate the correct value for&nbsp;<strong>CLK_PER_BIT</strong> use&nbsp;<strong>CLK_PER_BIT</strong> = Mojo Frequency / Baud Rate.</p>
+<p>If you open up <strong>avr_interface.v</strong> you will notice that&nbsp;<strong>CLK_PER_BIT</strong> is set to automatically calculated for you. The baud rate is set to 500,000 bits/sec. The AVR expects this baud rate regardless of what you set the baud rate on your computer for the USB to serial device. You will notice that this is not a standard baud rate! This rate was used since it divides evenly allowing for a high baud rates with 0% error.&nbsp;</p>
+<p>If you wanted a baud rate of 19200, you would use 50MHz / 19200 =&nbsp;2604 for&nbsp;<strong>CLK_PER_BIT</strong>. Notice that 19200 doesn't divide evenly into 50MHz. It's usually ok to just round to the nearest value. You can check your error by calculating the real baud rate (50MHz / 2604 =&nbsp;19201.228...) and using the percent error formula, difference / desired (1.228... / 19200 = 6.4*10^-5 or 6.4*10^-3%).</p>
+<p>The parameter <strong>CTR_SIZE</strong> should be the minimum number of bits needed to hold the value&nbsp;<strong>CLK_PER_BIT</strong>. In other words ceiling(Log2(<strong>CLK_PER_BIT</strong>)). This is also calculated automatically for you using the built in function&nbsp;<strong>$clog2</strong>.</p>
+<p>The input&nbsp;<strong>block</strong> is used by the AVR to tell the Mojo not to send any more data as it's buffer is full. If you don't need <strong>block</strong> you can set it to 0, or remove it from the module.</p>
+<p>The way this module works is pretty simple. When it is told to send a byte of data it sends out the start bit. Each bit lasts for&nbsp;<strong>CLK_PER_BIT</strong> number of clock cycles. After the start bit, the data bits are sent out LSB first. The transmission is finally ended with a stop bit.</p>
+<p>This is a more realistic example of using state machines than the state machine intoduced in the {{widget type="cms/widget_page_link" template="cms/widget/link/link_inline.phtml" page_id="35"}}.</p>
+<h3>The Receiver</h3>
+<p>The receiver code can be found in the&nbsp;<strong>serial_rx.v</strong> file in the <a href="https://github.com/embmicro/mojo-base-project/archive/master.zip" target="_blank">Mojo Base Project</a>.</p>
+<pre class="brush:verilog">module serial_rx #(
+    parameter CLK_PER_BIT = 50
+  )(
+    input clk,
+    input rst,
+    input rx,
+    output [7:0] data,
+    output new_data
+  );
+  
+  // clog2 is 'ceiling of log base 2' which gives you the number of bits needed to store a value
+  parameter CTR_SIZE = $clog2(CLK_PER_BIT);
+  
+  localparam STATE_SIZE = 2;
+  localparam IDLE = 2'd0,
+    WAIT_HALF = 2'd1,
+    WAIT_FULL = 2'd2,
+    WAIT_HIGH = 2'd3;
+  
+  reg [CTR_SIZE-1:0] ctr_d, ctr_q;
+  reg [2:0] bit_ctr_d, bit_ctr_q;
+  reg [7:0] data_d, data_q;
+  reg new_data_d, new_data_q;
+  reg [STATE_SIZE-1:0] state_d, state_q = IDLE;
+  reg rx_d, rx_q;
+  
+  assign new_data = new_data_q;
+  assign data = data_q;
+  
+  always @(*) begin
+    rx_d = rx;
+    state_d = state_q;
+    ctr_d = ctr_q;
+    bit_ctr_d = bit_ctr_q;
+    data_d = data_q;
+    new_data_d = 1'b0;
+    
+    case (state_q)
+      IDLE: begin
+        bit_ctr_d = 3'b0;
+        ctr_d = 1'b0;
+        if (rx_q == 1'b0) begin
+          state_d = WAIT_HALF;
+        end
+      end
+      WAIT_HALF: begin
+        ctr_d = ctr_q + 1'b1;
+        if (ctr_q == (CLK_PER_BIT >> 1)) begin
+          ctr_d = 1'b0;
+          state_d = WAIT_FULL;
+        end
+      end
+      WAIT_FULL: begin
+        ctr_d = ctr_q + 1'b1;
+        if (ctr_q == CLK_PER_BIT - 1) begin
+          data_d = {rx_q, data_q[7:1]};
+          bit_ctr_d = bit_ctr_q + 1'b1;
+          ctr_d = 1'b0;
+          if (bit_ctr_q == 3'd7) begin
+            state_d = WAIT_HIGH;
+            new_data_d = 1'b1;
+          end
+        end
+      end
+      WAIT_HIGH: begin
+        if (rx_q == 1'b1) begin
+          state_d = IDLE;
+        end
+      end
+      default: begin
+        state_d = IDLE;
+      end
+    endcase
+    
+  end
+  
+  always @(posedge clk) begin
+    if (rst) begin
+      ctr_q &lt;= 1'b0;
+      bit_ctr_q &lt;= 3'b0;
+      new_data_q &lt;= 1'b0;
+      state_q &lt;= IDLE;
+    end else begin
+      ctr_q &lt;= ctr_d;
+      bit_ctr_q &lt;= bit_ctr_d;
+      new_data_q &lt;= new_data_d;
+      state_q &lt;= state_d;
+    end
+    
+    rx_q &lt;= rx_d;
+    data_q &lt;= data_d;
+  end
+  
+endmodule</pre>
+<p>The parameters for this module are the same as the ones from the TX module.</p>
+<p>This module will sit in the&nbsp;<strong>IDLE</strong> state until it detects that the&nbsp;<strong>rx</strong> signal is low. That signals the beginning of the start bit. It then waits for&nbsp;<strong>half</strong> the number of clock cycles as&nbsp;<strong>CLK_PER_BIT</strong>. This is to make sure that the data bits are sampled near their centers, which is important for reliably receiving the data.</p>

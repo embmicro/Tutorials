@@ -1,0 +1,250 @@
+<p><span style="color: #ff0000;"><strong>The serial interface has changed on April 10, 2015. If you are having trouble, make sure you have the {{widget type="cms/widget_page_link" anchor_text="latest firmware" template="cms/widget/link/link_inline.phtml" page_id="36"}} and Mojo Base Project!</strong></span></p>
+<p>One of the cool features of the Mojo is that there is a microcontroller on-board that is used to configure the FPGA. However, once the FPGA is configured, the microcontroller is free to help out the FPGA! There are two main functions you can use the microcontroller for without modifying the code yourself. The first is an analog to digital convert and the other, which we are covering here, is a USB to serial converter.</p>
+<p>This allows you to use the USB port on the Mojo to send data to your computer. The protocol used to send data isn't too complicated at it's core, but luckily for you we already wrote that part of the design for you!&nbsp;</p>
+<p>If you grab a copy of the <a href="https://github.com/embmicro/mojo-base-project/archive/master.zip" target="_blank">Mojo Base Project</a>, all the source for this is included. Make sure you download a fresh copy for this tutorial.</p>
+<h3>AVR Interface</h3>
+<p>The main module you need to worry about is the&nbsp;<strong>avr_interface</strong> module. <strong>AVR</strong> is the type of microcontroller on the Mojo.&nbsp;This module is the only one you need to directly interface with.&nbsp;</p>
+<p>As you've probably noticed in other tutorials, out&nbsp;<strong>mojo_top</strong> module had a lot of extra inputs and outputs that weren't being used. Those are all used to interface with the AVR and should be connected to the&nbsp;<strong>avr_interface</strong> module.</p>
+<pre class="brush: verilog">module avr_interface #(
+  parameter CLK_RATE = 50000000,
+  parameter SERIAL_BAUD_RATE = 500000
+)(
+  input clk,
+  input rst,
+
+  // cclk, or configuration clock is used when the FPGA is begin configured.
+  // The AVR will hold cclk high when it has finished initializing.
+  // It is important not to drive the lines connecting to the AVR
+  // until cclk is high for a short period of time to avoid contention.
+  input cclk,
+
+  // AVR SPI Signals
+  output spi_miso,
+  input spi_mosi,
+  input spi_sck,
+  input spi_ss,
+  output [3:0] spi_channel,
+
+  // AVR Serial Signals
+  output tx,
+  input rx,
+
+  // ADC Interface Signals
+  input [3:0] channel,
+  output new_sample,
+  output [9:0] sample,
+  output [3:0] sample_channel,
+
+  // Serial TX User Interface
+  input [7:0] tx_data,
+  input new_tx_data,
+  output tx_busy,
+  input tx_block,
+
+  // Serial Rx User Interface
+  output [7:0] rx_data,
+  output new_rx_data
+);</pre>
+<p>Here is the port declaration of the module. &nbsp;Many of the signals are named the same as the top level ports. The few exceptions are&nbsp;<strong>tx</strong> which connects to&nbsp;<strong>avr_rx</strong>,&nbsp;<strong>rx</strong> which connects to&nbsp;<strong>avr_tx</strong>, and&nbsp;<strong>tx_block</strong> which connects to&nbsp;<strong>avr_rx_busy</strong>.&nbsp;</p>
+<p>For now forget about the&nbsp;<strong>channel</strong>&nbsp;and&nbsp;<strong>sample</strong> signals, they are used to interface with the ADC and will be covered in another tutorial.</p>
+<p>The signals that are important right now are <strong>tx_data</strong>,&nbsp;<strong>new_tx_data</strong>,&nbsp;<strong>tx_busy</strong>, <strong>rx_data</strong>,&nbsp;<strong>new_rx_data</strong>.</p>
+<p><strong>tx_data</strong> is the data (one byte) that you want to send over the virtual serial port. When you have a new byte you want to send, you need to check&nbsp;<strong>tx_busy</strong> to make sure the module is not busy in anyway. The busy flag can be set for a number of reasons which include, the module is currently sending a byte,&nbsp;<strong>cclk</strong> has not signaled the AVR is ready for data, or the AVR can't accept new data because it's buffer is full.</p>
+<p>If the&nbsp;<strong>tx_busy</strong> flag is not set, you can set <strong>new_tx_data</strong> high for one clock cycle to indicate you want the byte present on&nbsp;<strong>tx_data</strong> to be sent.&nbsp;</p>
+<p>To make this clearer, we will implement the classic&nbsp;<em>Hello World!</em> example.</p>
+<h3>ROMs</h3>
+<p>Since we want to send the string&nbsp;<em>Hello World!</em>&nbsp;through the serial port we need to store it somewhere that is easy to access. This is where a&nbsp;<strong>ROM</strong>&nbsp;(<strong>R</strong>ead&nbsp;<strong>O</strong>nly <strong>M</strong>emory)&nbsp;comes in handy.</p>
+<p>Here is the ROM we will use. Create a new file named&nbsp;<strong>message_rom.v</strong> and add the following code.</p>
+<pre class="brush: verilog">module message_rom (
+    input clk,
+    input [3:0] addr,
+    output [7:0] data
+  );
+
+  wire [7:0] rom_data [13:0];
+
+  assign rom_data[0] = "H";
+  assign rom_data[1] = "e";
+  assign rom_data[2] = "l";
+  assign rom_data[3] = "l";
+  assign rom_data[4] = "o";
+  assign rom_data[5] = " ";
+  assign rom_data[6] = "W";
+  assign rom_data[7] = "o";
+  assign rom_data[8] = "r";
+  assign rom_data[9] = "l";
+  assign rom_data[10] = "d";
+  assign rom_data[11] = "!";
+  assign rom_data[12] = "\n";
+  assign rom_data[13] = "\r";
+
+  reg [7:0] data_d, data_q;
+
+  assign data = data_q;
+
+  always @(*) begin
+    if (addr &gt; 4'd13)
+      data_d = " ";
+    else
+      data_d = rom_data[addr];
+  end
+
+  always @(posedge clk) begin
+    data_q &lt;= data_d;
+  end
+
+endmodule</pre>
+<p>A ROM generally just consists of a few ports, in our case three. The way a ROM works is you specify an address,&nbsp;<strong>addr</strong>, and on the next clock cycle the corresponding data appears at it's output port,&nbsp;<strong>data</strong>.&nbsp;</p>
+<pre class="brush: verilog; first-line:7">wire [7:0] rom_data [13:0];</pre>
+<p>This line is worth mentioning because it is the first time we needed a 2D array. For whatever reason, in Verilog when you want a multi-dimensional array, you specify the extra dimensions after the name of your array.</p>
+<p>A 3D array could look like this.</p>
+<pre class="brush: verilog; first-line:7">wire [7:0] rom_data [13:0][7:0];</pre>
+<p>One thing to note, you aren't allowed to use multi-dimensional arrays in port declarations.</p>
+<p>To address into our array of data we use the 4 bit wide value from&nbsp;<strong>addr,</strong> which can have a value from 0-15. However, our array only has indexes up to 13! To compensate for this we use the if statement to provide a default value for the out-of-bounds case.</p>
+<h3>State Machines</h3>
+<p>A state machine is a very useful technique when you are working with FPGAs. Most designs will have many state machines in them. You could even classify a processor as a state machine in the broad use of the term.</p>
+<p>So what is a state machine? For the FPGA, it's basically a circuit that has various states and it will behave differently depending on the state it's in. Certain sets of input may cause the state to change.</p>
+<p>The text-book example is a traffic light. The light has a few states, red, yellow, green, and it will transition between these states when certain events happen like a car waiting for a green, or a certain amount of time has elapsed.</p>
+<p>In our example, our state machine is very simple and it has only two states,&nbsp;<strong>IDLE</strong>&nbsp;and&nbsp;<strong>PRINT_MESSAGE</strong>. As the names suggest, the&nbsp;<strong>IDLE</strong> state just waits for a signal to transition to&nbsp;the&nbsp;<strong>PRINT_MESSAGE</strong> state. The&nbsp;<strong>PRINT_MESSAGE</strong> state will print out our&nbsp;<em>Hello World!</em> message then return to the&nbsp;<strong>IDLE</strong> state.</p>
+<pre class="brush: verilog">module message_printer (
+    input clk,
+    input rst,
+    output [7:0] tx_data,
+    output reg new_tx_data,
+    input tx_busy,
+    input [7:0] rx_data,
+    input new_rx_data
+  );
+
+  localparam STATE_SIZE = 1;
+  localparam IDLE = 0,
+    PRINT_MESSAGE = 1;
+
+  localparam MESSAGE_LEN = 14;
+
+  reg [STATE_SIZE-1:0] state_d, state_q;
+
+  reg [3:0] addr_d, addr_q;
+
+  message_rom message_rom (
+  .clk(clk),
+  .addr(addr_q),
+  .data(tx_data)
+  );
+
+  always @(*) begin
+    state_d = state_q; // default values
+    addr_d = addr_q;   // needed to prevent latches
+    new_tx_data = 1'b0;
+
+    case (state_q)
+      IDLE: begin
+        addr_d = 4'd0;
+        if (new_rx_data &amp;&amp; rx_data == "h")
+          state_d = PRINT_MESSAGE;
+      end
+      PRINT_MESSAGE: begin
+        if (!tx_busy) begin
+          new_tx_data = 1'b1;
+          addr_d = addr_q + 1'b1;
+          if (addr_q == MESSAGE_LEN-1)
+            state_d = IDLE;
+        end
+      end
+      default: state_d = IDLE;
+    endcase
+  end
+
+  always @(posedge clk) begin
+    if (rst) begin
+      state_q &lt;= IDLE;
+    end else begin
+      state_q &lt;= state_d;
+    end
+
+    addr_q &lt;= addr_d;
+  end
+
+endmodule</pre>
+<p>Add a new file named&nbsp;<strong>message_printer.v</strong>&nbsp;and add this code.</p>
+<p>It is good practice to use&nbsp;<strong>localparams</strong> to declare the states in your state machine. That makes it not only easier to read, but a lot easier to add or remove states.</p>
+<p>For this example, I decided it would be a good idea to wait for an&nbsp;<strong><em>h</em></strong>&nbsp;before printing<strong>&nbsp;</strong><em>Hello World!</em>. Once an&nbsp;<strong><em>h</em></strong> is detected, the state changes to&nbsp;<strong>PRINT_MESSAGE</strong>. It then uses&nbsp;<strong>addr_d</strong>/<strong>_q</strong> to increment through the ROM sending each character.</p>
+<p>One important thing to notice is the first three lines in the combinational always block. It's important to always give&nbsp;<strong>regs</strong> a value. If it is possible to run through the always block without assigning a value to every&nbsp;<strong>reg</strong> you can end up with something known as a&nbsp;<strong>latch</strong>. Without going into detail,&nbsp;latches are bad! They can make things behave very unpredictably when actually loaded on the FPGA (although you may not notice it in simulation)! ISE will throw warnings when it detects a latch so you should always check for those.</p>
+<p>The easy solution is to just assign every&nbsp;<strong>reg</strong> a default value in the beginning of your always block.</p>
+<h3>Case Statements</h3>
+<p>To implement state machines, you usually use a<strong>&nbsp;case</strong> statement. If you've ever programmed in C/C++ or Java this should be pretty familiar (it's basically a switch statement).</p>
+<p>The first line</p>
+<pre class="brush: verilog; first-line: 32">  case (state_q)</pre>
+<p>sets up the case statement and says we are going to be looking at the value of&nbsp;<strong>state_q</strong>.</p>
+<p>Each of the following blocks of code is only used in the case that&nbsp;<strong>state_q</strong> matches the value stated. So the first part is used when&nbsp;<strong>state_q</strong> is&nbsp;<strong>IDLE</strong>&nbsp;and the second is used when it is&nbsp;<strong>PRINT_MESSAGE</strong>.&nbsp;</p>
+<p>It is important to always have a&nbsp;<strong>default</strong> entry in your case statement that will bring you back to a known state. You may be thinking&nbsp;that you don't need one since it should be impossible to have any other state than the two we defined. You may be surprised to find out that this is not the case. If the state is encoded with just 1 bit then it is true that it is impossible to be anything else because 1 bit only has 2 values. However, when your design gets synthesized the tools will generally optimize the encoding used by your states and it may make&nbsp;<strong>state_q</strong> actually 2 bits! You may be thinking that this shouldn't change anything because no where in your design do you specify a change to an unknown state. There is however, a small chance that the value a register holds gets flipped randomly putting you in an unknown state! This can be caused by a number of events including radiation. Providing a default case makes sure that if this happens your design will still have predictable behavior.&nbsp;</p>
+<h3>The Top Module</h3>
+<p>Here is the code for&nbsp;<strong>mojo_top.v</strong></p>
+<pre class="brush:verilog">module mojo_top(
+    // 50MHz clock input
+    input clk,
+    // Input from reset button (active low)
+    input rst_n,
+    // cclk input from AVR, high when AVR is ready
+    input cclk,
+    // Outputs to the 8 onboard LEDs
+    output[7:0]led,
+    // AVR SPI connections
+    output spi_miso,
+    input spi_ss,
+    input spi_mosi,
+    input spi_sck,
+    // AVR ADC channel select
+    output [3:0] spi_channel,
+    // Serial connections
+    input avr_tx, // AVR Tx =&gt; FPGA Rx
+    output avr_rx, // AVR Rx =&gt; FPGA Tx
+    input avr_rx_busy // AVR Rx buffer full
+  );
+
+  wire rst = ~rst_n; // make reset active high
+
+  assign led = 8'b0;
+
+  wire [7:0] tx_data;
+  wire new_tx_data;
+  wire tx_busy;
+  wire [7:0] rx_data;
+  wire new_rx_data;
+
+  avr_interface avr_interface (
+    .clk(clk),
+    .rst(rst),
+    .cclk(cclk),
+    .spi_miso(spi_miso),
+    .spi_mosi(spi_mosi),
+    .spi_sck(spi_sck),
+    .spi_ss(spi_ss),
+    .spi_channel(spi_channel),
+    .tx(avr_rx), // FPGA tx goes to AVR rx
+    .rx(avr_tx),
+    .channel(4'd15), // invalid channel disables the ADC
+    .new_sample(),
+    .sample(),
+    .sample_channel(),
+    .tx_data(tx_data),
+    .new_tx_data(new_tx_data),
+    .tx_busy(tx_busy),
+    .tx_block(avr_rx_busy),
+    .rx_data(rx_data),
+    .new_rx_data(new_rx_data)
+  );
+
+  message_printer helloWorldPrinter (
+    .clk(clk),
+    .rst(rst),
+    .tx_data(tx_data),
+    .new_tx_data(new_tx_data),
+    .tx_busy(tx_busy),
+    .rx_data(rx_data),
+    .new_rx_data(new_rx_data)
+  );
+
+endmodule</pre>
+<p>Here we just instantiate the two modules. Notice the&nbsp;<strong>assign</strong> statements that used to be at the top were removed since we are now using those ports.</p>
+<p>You should now be able to synthesize your project and load it onto your Mojo. I tested this using&nbsp;<strong>minicom</strong> on Linux, but any serial terminal program should work. It doesn't matter the parameters you specify for the serial port as they are ignored.&nbsp;</p>
+<p>When you send&nbsp;<em><strong>h</strong></em> over the serial port the Mojo should respond with&nbsp;<em>Hello World!</em>.</p>

@@ -1,0 +1,40 @@
+<p>All new Mojo's are shipping with a new bootloader that is Arduino compatible. That means that if you want to modify the code that ships on the Mojo, you can from the comfort of the Arduino IDE.</p>
+<p>If your Mojo shipped to you in a small custom printed box (shipping since Jan 2014), it is already Arduinio compatible. However, if you ordered a Mojo V3 before or have a Mojo V2, you can visit the <a href="/tutorials/mojo-software-and-updates/flashing-bootloader">Flashing the Bootloader</a>&nbsp;page after installing the Arduino IDE for instructions on upgrading.</p>
+<p>
+    Please note that if you have a Mojo V2, you need to use the Arduino IDE version 1.6.5.
+</p>
+<p><span style="color: #ff0000;">Note, you do not need to use the Arduino IDE or code at all to use the Mojo. This is only for people who want to program&nbsp;<strong>BOTH</strong> the FPGA and the microcontroller. If you only want to program the FPGA jump into the <a href="http://embeddedmicro.com/tutorials/mojo/creating-a-project" target="_blank">FPGA tutorials</a>.</span></p>
+<h2>Arduino IDE 1.6.5</h2>
+<p>Arduino has recently released version 1.6.5 of their IDE which makes third part extensions much easier. If you are using version 1.6.5, download the <a href="{{media url="wysiwyg/arduino/arduino-mojo-plugin.zip"}}">Arduino Mojo Plugin</a>.</p>
+<p>Extract the zip into your sketchbook (typically <strong>C:\Users\YOURNAME\Arduino</strong> for Windows or <strong>/home/YOURNAME/Arduino</strong> for Linux).</p>
+<p>Under <strong>Arduino/hardware/embeddedmicro/avr/</strong> you should see a handful of folders and the <strong>boards.txt</strong> and <strong>platform.txt</strong> files.</p>
+<p>You can now fire up the IDE and jump down to the <strong>Getting Started</strong> section of this tutorial.</p>
+<h2>Arduino IDE 1.0.5</h2>
+<h3>Installing the Arduino IDE</h3>
+<p>The first step of this process is to to just download and install the Arduino IDE!</p>
+<p>Head over to the <a href="http://arduino.cc/en/Main/Software" target="_blank">Arduino website</a> and download version&nbsp;<strong>1.0.5</strong> of the IDE.</p>
+<p>If you are running Ubuntu you can install the IDE directly from the Ubuntu Software Center, or by entering the following command in the terminal.</p>
+<pre class="brush:bash">sudo apt-get install arduino</pre>
+<h3>Adding the Mojo</h3>
+<p>Once the IDE is installed, you will need to edit some files to make it work with the Mojo.</p>
+<p>Download all the files you will need <a href="{{media url="wysiwyg/arduino/arduinoMod.zip"}}">here</a>&nbsp;and extract the zip somewhere you can find it.</p>
+<p>You now need to find where the files for the Arduino IDE live.</p>
+<p>If you are using&nbsp;<strong>Windows</strong> and you installed it via their installer, the files most likely live at&nbsp;<strong>C:\Program Files (x86)\Arduino</strong>.</p>
+<p>If you are using&nbsp;<strong>Ubuntu</strong> and you installed it via the Software Center or the terminal, the files most likely live at&nbsp;<strong>/usr/share/arduino</strong>. You will need to edit some files here so you will need to open a file browser with root privileges. Press&nbsp;<strong>alt+F2</strong> and type in&nbsp;<strong>gksu nautilus</strong>. Hit enter and type in your password.&nbsp;<strong>Be careful because in this file browser you will be able to delete system files!</strong></p>
+<p>Once you find the Arduino files, open the&nbsp;<strong>hardware</strong> folder, then open the&nbsp;<strong>arduino</strong> folder.</p>
+<p>You should now see the&nbsp;<strong>boards.txt</strong> file. Use the&nbsp;<strong>boards.txt</strong> file from the zip you downloaded earlier to replace the Arduino one.</p>
+<p>The new file contains the declaration of the Mojo telling the Arduino IDE how to handle it.</p>
+<p>Now simply copy all the files in the&nbsp;<strong>arduinoMod.zip</strong> to the <strong>hardware/arduino</strong>&nbsp;folder. You should merge the various directories replacing only the files that are included in the modified files.</p>
+<h2>Getting Started</h2>
+<p>To get started you need to download our base sketch that does the loading. To do this checkout our <a href="https://github.com/embmicro/mojo-arduino" target="_blank">GitHub page</a> or download the zip directly from <a href="https://github.com/embmicro/mojo-arduino/archive/master.zip">here</a>.</p>
+<p>Create a folder name&nbsp;<strong>mojo_loader</strong> in your sketchbook and extract the files into that folder. Arduino requires that the folder name match the main .ino file (in this case <strong>mojo_loader.ino</strong>).&nbsp;</p>
+<p>Make sure that the Mojo is selected by going to&nbsp;<strong>Tools/Boards</strong> and selecting&nbsp;<strong>Mojo V3</strong>. Also make sure you select the correct serial port in&nbsp;<strong>Tools/Serial Port</strong> before trying to program the Mojo.</p>
+<p>In the main&nbsp;<strong>mojo_loader</strong> file there are only three functions you should have to change for most projects. They are&nbsp;<strong>initPostLoad()</strong>,&nbsp;<strong>disablePostLoad()</strong>, and&nbsp;<strong>userLoop()</strong>.</p>
+<p><strong>initPostLoad()</strong> is called before&nbsp;<strong>userLoop()</strong> and should be used to do any setup your code needs.</p>
+<p><strong>disablePostLoad()</strong> is called before the Mojo enters loading mode and is used to&nbsp;<strong>undo</strong> anything you did in&nbsp;<strong>initPostLoad()</strong>. If you fail to properly undo your setup, the loading code may not function properly.</p>
+<p><strong>userLoop()</strong> is where the bulk of your code should live. This acts much the same way as the basic&nbsp;<strong>loop()</strong> function provided by Arduino, but is only called when the FPGA has already been loaded. You should try to keep the loop duration fairly short so that the Mojo Loader will be able to get the Mojo into loading mode in a reasonable amount of time.</p>
+<h3>Notes About Our Code</h3>
+<p>If you look through our code you may notice we don't use some the Arduino libraries for things. In some cases it didn't make sense to use the libraries because we could do things more efficiently by accessing the registers directly.&nbsp;</p>
+<p>The most noticeable example of this is we don't use&nbsp;<strong>digitalWrite()</strong>. Instead, we have use&nbsp;<strong>SET()</strong> which is a macro defined in&nbsp;<strong>hardware.h</strong>.&nbsp;<strong>digitalWrite()</strong> is actually fairly slow due to the fact that it disables and re-enables interrupts every time it is called. This was done so that if you are calling it from inside interrupts, it will work as expected. However, we never do that so the overhead is for nothing. <strong>SET()</strong> is as basic as you can get for setting pins, but it works basically the same way that&nbsp;<strong>digitalWrite()</strong> does.</p>
+<p>We also decided not to use the libraries for&nbsp;<strong>Serial1</strong> and&nbsp;the <strong>ADC</strong>. This is because we did some fancy stuff with interrupts and ring buffers to allow the FPGA to have fast access to the USB port and the ADC.&nbsp;</p>
+<p>If you don't want to use these optimizations, feel free to remove this code and replace it with the Arduino libraries.</p>

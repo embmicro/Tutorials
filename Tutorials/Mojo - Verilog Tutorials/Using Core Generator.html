@@ -1,0 +1,44 @@
+<p>Core Generator (also called <b>CoreGen</b>) is a powerful tool provided by Xilinx to help easily and efficiently accomplish some common functions. It allows you to generate modules for things like RAMs, ROMs, clock synthesis, complicated math functions, and even basic processor cores.</p>
+<p>This tutorial will show how we used CoreGen to perform some complicated math and generate the block RAMs used in our <b></b><a href="/media/wysiwyg/clock-shield/Mojo-Clock.zip">Clock/Visualizer Shield Demo</a>. If you haven't already, you should download the project so you can follow along.</p>
+<p>After you download the project, open it up in ISE.</p>
+<p>Once in ISE, to access CoreGen, click on <b>Tools-&gt;Core Generator...</b></p>
+<p>This will automatically open the CoreGen project file for the <a href="/development-boards/clock-visualizer-shield.html">Clock/Visualizer Shield</a>. </p>
+<p><img src="{{media url="wysiwyg//CoreGen/CoreGen_main.resized.png"}}" alt="CoreGen Main Screen" /></p>
+<p>On the left hand side of the window, you have the cores that are available to be generated on the top and the cores being used in the project on the bottom left. On the right is information about the currently selected core.</p>
+<p>You can see for this project we used 8 cores. Four of them are RAMs, one performs a square root, one is a decimation filter, another is a FIFO, and the last is the one that performs the Fourier Transform.</p>
+<p>Let's start with one of the most commonly used cores, block RAM. Double click on <b>sample_ram</b>.</p>
+<p><img src="{{media url="wysiwyg/CoreGen/CoreGen_sample_ram.resized.png"}}" alt="Sample RAM in CoreGen" /></p>
+<p>This RAM is used to store the samples from the microphone before they are ready to be processed. If you take a look at the diagram on the left you can see the module's inputs and outputs. </p>
+<p>This module has inputs <b>ADDRA[9:0]</b>, <b>DINA[15:0]</b>, <b>WEA[0:0]</b>, <b>CLKA</b>, <b>ADDRB[9:0]</b>, <b>CLKB</b> and output <b>DOUTB[15:0]</b>. As you may be able to tell, this RAM is a <b>simple dual port RAM</b>. That means that it has two independent ports, one for writing and one for reading. This allows for different address to be read and written simultaneously. </p>
+<p>If you look at the bottom of the window you will see <b>&lt; Back</b> and <b>Next &gt;</b> buttons. You can use these to go through the various pages of configuration options. On the second page you can see where we set the <b>Memory Type</b> to be a <b>Simple Dual Port RAM</b>. </p>
+<p><img src="{{media url="wysiwyg/CoreGen/CoreGen_ram_page_2.resized.png"}}" alt="CoreGen Sample RAM Page 2" /></p>
+<p>On the same page there are also options to tell CoreGen what to optimize when generating your RAM. We have <b>Minimum Area</b> selected, which is the most important constraint in most cases. </p>
+<p>As you go through the configuration settings, you'll find settings for each port's <b>width</b> and <b>depth</b>. The <b>width</b> of a RAM is how many bits belong to each address. In this case, we use 16 bits as our width since the audio samples are 16 bits wide. The <b>depth</b> is how many address the RAM will have. While you don't strictly need to use a power of two for this, it can make life simpler because then you don't have any invalid addresses.</p>
+<p>Once you configure a core how you want, just click the <b>Generate</b> button to get CoreGen to generate the core.</p>
+<p>You should look at the other cores used in the project as well as the other cores available to you in your own projects. One thing to be aware of is that <b>not all cores are free</b>. Xilinx does a good job of providing a good base of free cores that cover a lot of functionality, but fancier cores such as the cores found in <b>Standard Bus Interfaces,</b> require you to purchase a license to use them in the FPGA (you can generally simulate with them, but that's no fun).</p>
+<h3>Adding cores to your project</h3>
+<p>After you have generated your core, it's still not in your project! First close CoreGen and go back to ISE.</p>
+<p>Since all the cores we are using in the Clock/Visualizer Shield Demo are already added, you'll get errors if you try to add it again. However, we'll do it anyways to show you how it's done.</p>
+<p>Most cores will have two files you need to add to your project, a <b>.v</b> file and a <b>.ngc</b> file. It's very important to have both, because the <b>.ngc</b> file is the one that actually has the information about the implementation of the core. The <b>.v</b> file is used as a kind of glue to connect the <b>.ngc</b> to your project.</p>
+<p>Click on <b>Project-&gt;Add Source</b></p>
+<p>Navigate to where your cores were generated, in this case it's in the folder named <b>ipcore_dir</b>. </p>
+<p><img src="{{media url="wysiwyg/CoreGen/CoreGen_Adding_Core.png"}}" alt="Adding a Core" /></p>
+<p>Select the two files for your core and click open. This will add them to your project, but like we said before, these are already in the project so it gives you an error. </p>
+<h3>Using your cores</h3>
+<p>Once you've created your core and added it to your project, you need to actually use it!</p>
+<p>If you look in the <b>ipcore_dir</b> folder and open up the <b>.veo</b> file for your core, you will find an example on how to instantiate the core. </p>
+<p>There are a lot of comments in the file but here is the important content of the <b>sample_ram.veo</b> file</p>
+<pre class="brush:verilog; first-line: 49;">//----------- Begin Cut here for INSTANTIATION Template ---// INST_TAG
+sample_ram your_instance_name (
+  .clka(clka), // input clka
+  .wea(wea), // input [0 : 0] wea
+  .addra(addra), // input [9 : 0] addra
+  .dina(dina), // input [15 : 0] dina
+  .clkb(clkb), // input clkb
+  .addrb(addrb), // input [9 : 0] addrb
+  .doutb(doutb) // output [15 : 0] doutb
+);
+// INST_TAG_END ------ End INSTANTIATION Template ---------
+</pre>
+<p>You can just copy and paste this into your project to use the <b>sample_ram</b> module. Of course, you still need to specify the correct inputs and outputs.</p>
+<p>That's it! Using CoreGen is a great way to get some of the heavy lifting in a project done for you and in a very efficient way.</p>

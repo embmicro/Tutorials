@@ -1,0 +1,250 @@
+<p>In this tutorial we will create a project that will send "Hello World!" over the USB (serial) port when the letter "h" is received. This will help teach you how to use finite state machines (FSM).</p>
+<h2>Setup</h2>
+<p>As with all the tutorials, we first need to create a new project based on the Base Project. I called mine "Hello World" but you are free to choose whatever name you want.</p>
+<p>With the new empty project, we now need to add the <i>avr_interface</i> component. This will be used to talk to the AVR and expose a nice interface to send data over the USB port.</p>
+<p>You should know how to add a component to your project from the last tutorial. If you need a refresher, {{widget type="cms/widget_page_link" anchor_text="click here" template="cms/widget/link/link_inline.phtml" page_id="64"}}.</p>
+<p>The component we need to add is the <i>AVR Interface</i> component and it can be found under <i>Interfaces</i>. This component will include a bunch of other components as dependencies.</p>
+<h2>The AVR Interface</h2>
+<p>Let's first take a look at what the <i>avr_interface</i> module looks like.</p>
+<pre class="brush:lucid;first-line:30">module avr_interface #(
+    CLK_FREQ = 50000000 : CLK_FREQ > 0,            // clock frequency
+    BAUD = 500000 : BAUD > 0 && BAUD < CLK_FREQ/4  // baud rate
+  )(
+    input clk,
+    input rst,
+
+    // cclk, or configuration clock is used when the FPGA is begin configured.
+    // The AVR will hold cclk high when it has finished initializing.
+    // It is important not to drive the lines connecting to the AVR
+    // until cclk is high for a short period of time to avoid contention.
+    input cclk,
+
+    // AVR SPI Signals
+    output spi_miso,           // connect to spi_miso
+    input spi_mosi,            // connect to spi_mosi
+    input spi_sck,             // connect to spi_sck
+    input spi_ss,              // connect to spi_ss
+    output spi_channel[4],     // connect to spi_channel
+
+    // AVR Serial Signals
+    output tx,                 // connect to avr_rx (note that tx->rx)
+    input rx,                  // connect to avr_tx (note that rx->tx)
+
+    // ADC Interface Signals
+    input channel[4],          // ADC channel to read from, use hF to disable ADC
+    output new_sample,         // new ADC sample flag
+    output sample[10],         // ADC sample data
+    output sample_channel[4],  // channel of the new sample
+
+    // Serial TX User Interface
+    input tx_data[8],          // data to send
+    input new_tx_data,         // new data flag (1 = new data)
+    output tx_busy,            // transmitter is busy flag (1 = busy)
+    input tx_block,            // block the transmitter (1 = block) connect to avr_rx_busy
+
+    // Serial Rx User Interface
+    output rx_data[8],         // data received
+    output new_rx_data         // new data flag (1 = new data)
+  ) {</pre>
+<p>We will only be looking at the interface to the module since we don't need to know how it all works to use it properly (the magic of components).</p>
+<p>There are lots of comments explaining what the signals are for, but the ones we care about I'll explain in more detail.</p>
+<h3>cclk</h3>
+<p><i>cclk</i> is a very important signal. When the FPGA is still being configured by the AVR, the AVR uses this to send the configuration data. The signal toggles as data is being sent. However, once the FPGA is up and running, the AVR holds it high. We can then use this to make sure that the FPGA doesn't try to drive it's outputs before the AVR is ready. This is because there is a small window between when the FPGA is configured and when the AVR has initialized its IO for the FPGA post-load. We don't have to worry about this since the <i>avr_interface</i> module will take care of it. We just need to pass the signal in.</p>
+<h3>tx and rx</h3>
+<p>These signals are the serial connection to the AVR. Data sent on these will be sent over the USB port.</p>
+<h3>Serial TX and RX User Interfaces</h3>
+<p>These interfaces have a few signals which we will be using internally to tell the module what data to send and to receive any incoming data. One signal to take note of is the <i>tx_block</i> signal. This is used by the AVR to to do some hand-shaking with the FPGA to make sure the FPGA doesn't send too much data (as it will start dropping bytes). Again we just need to connect this to the correct external signal and everything else is taken care of for us.</p>
+<h2>Adding avr_interface to mojo_top</h2>
+<p>We now can add <i>avr_interface</i> to our top level module, <i>mojo_top</i>.</p>
+<pre class="brush:lucid;first-line:18">.clk(clk) {
+    // The reset conditioner is used to synchronize the reset signal to the FPGA
+    // clock. This ensures the entire FPGA comes out of reset at the same time.
+    reset_conditioner reset_cond;
+
+    .rst(rst){
+      // the avr_interface module is used to talk to the AVR for access to the USB port and analog pins
+      avr_interface avr;
+    }
+  }
+
+  always {
+    reset_cond.in = ~rst_n; // input raw inverted reset signal
+    rst = reset_cond.out;   // conditioned reset
+
+    // connect inputs of avr
+    avr.cclk = cclk;
+    avr.spi_ss = spi_ss;
+    avr.spi_mosi = spi_mosi;
+    avr.spi_sck = spi_sck;
+    avr.rx = avr_tx;
+    avr.channel = hf; // ADC is unused so disable
+    avr.tx_block = avr_rx_busy; // block TX when AVR is busy
+
+    // connect outputs of avr
+    spi_miso = avr.spi_miso;
+    spi_channel = avr.spi_channel;
+    avr_rx = avr.tx;
+
+    led = 8h00;             // turn LEDs off
+  }</pre>
+  <p>All of the external signals are already defined for us in the Base Project. We simply connect them up. Something to notice is that <i>avr_tx</i> connects to <i>avr.rx</i> and <i>avr.tx</i> connects to <i>avr_rx</i>. This is because the signals <i>avr_rx</i> and <i>avr_tx</i> are from the point of view of the AVR, while <i>avr.rx</i> and <i>avr.tx</i> are from the point of view of the FPGA. We want the FPGA's transmitter to connect to the AVR's receiver and visa-versa.</p>
+  <p>We haven't yet connected all of the signals of <i>avr</i>.</p>
+  <h2>The Serial Interface</h2>
+  <h3>Receiving Data</h3>
+  <p>We will first look at how we know when data comes in.</p>
+  <p>There are two signals that are important for this, <i>avr.rx_data</i> and <i>avr.new_rx_data</i>. Their names are pretty self explanatory. The signal <i>new_rx_data</i> is a single bit wide and acts as a flag. When this signal is 1, the value of <i>rx_data</i> is valid and it's the byte we just received.</p>
+  <p>This means if we want to wait for a specific byte, we can simply wait for <i>new_rx_data</i> to be high and <i>rx_data</i> to be the value we want. This is exactly what we will do later.</p>
+  <h3>Transmitting Data</h3>
+  <p>Transmitting data is a tiny bit more complicated since we now have three signals. The signals <i>avr.new_tx_data</i> and <i>avr.tx_data</i> are exactly the same as their rx counterparts, except this time they are inputs to the transmitter, so we generate the values. When we want to send a a byte, we set <i>tx_data</i> to be that byte and pulse <i>new_tx_data</i> high for one clock cycle (if you left it high, the same byte would be sent over and over). There is one more thing to consider, that is that the transmitter can't send an entire byte every clock cycle (the fastest we can provide data). Therefore, we need to look at the third signal, <i>avr.tx_busy</i>, to know when it is safe to send more data. This signal will be high when the transmitter is busy. When it is busy, any new data will be ignored. That means we must ensure that this signal is low before we attempt to send any data if we want to ensure we don't drop any bytes.</p>
+  <p>We will now create two new modules that will deal with all these signals to send "Hello World!" when an "h" is received.</p>
+  <h2>ROMs</h2>
+  <p>Before we get too deep into generating and handling these signals, we need to create a ROM (<b>R</b>ead <b>O</b>nly <b>M</b>emory).</p>
+  <p>Our ROM will hold the message we want to send, in our case "Hello World!".</p>
+  <p>Create a new module named <i>hello_world_rom</i> and add the following to it.</p>
+  <pre class="brush:lucid">module hello_world_rom (
+    input address[4],  // ROM address
+    output letter[8]   // ROM output
+  ) {
+
+  const TEXT = "\r\n!dlroW olleH"; // text is reversed to make 'H' address [0]
+
+  always {
+    letter = TEXT[address]; // address indexes 8 bit blocks of TEXT
+  }
+}</pre>
+<p>We have a single input, <i>address</i>, and a single output, <i>letter</i>. We want to output the first letter, "H", when address is 0 and the second letter, "e", when address is 1. This continues for each letter in our message.</p>
+<p>This is actually pretty simple to do. First we need an array of the data we want to send. This is done in the following line.</p>
+<pre class="brush:lucid;first-line:6">  const TEXT = "\r\n!dlroW olleH"; // text is reversed to make 'H' address [0]</pre>
+<p>Here we are using a string to represent our data. Strings of more than one letter are 2D. The first dimension has an index for each letter and the second dimension is 8 bits wide.</p>
+<p>Note that the text is reversed. This is because we want, as the comment says, for "H" to be the first letter. Also note that "\n" and "\r" are actually single characters each. That means when we reversed the text we didn't write "n\r\" which would be wrong. These characters will make sure the text is on a new line each time it is sent. "\n" goes to the next line and "\r" returns the cursor to the beginning of the new line.</p>
+<p>Next, we simply need to set <i>letter</i> to the correct value in <i>TEXT</i> based on the given <i>address</i>. We do that on line 9.</p>
+<pre class="brush:lucid;first-line:9">
+    letter = TEXT[address]; // address indexes 8 bit blocks of TEXT
+</pre>
+<p>Since the text is reversed, we can simply output the corresponding letter.</p>
+<p>This wraps up the ROM!</p>
+<h2>The Greeter</h2>
+<p>This is where we will talk to the <i>avr_interface</i> module to actually send and receive data.</p>
+<p>Create a new module named <i>greeter</i> and fill it with the following.</p>
+<pre class="brush:lucid">module greeter (
+    input clk,         // clock
+    input rst,         // reset
+    input new_rx,      // new RX flag
+    input rx_data[8],  // RX data
+    output new_tx,     // new TX flag
+    output tx_data[8], // TX data
+    input tx_busy      // TX is busy flag
+  ) {
+
+  const NUM_LETTERS = 14;
+
+  .clk(clk) {
+    .rst(rst) {
+      fsm state = {IDLE, GREET};
+    }
+    dff count[$clog2(NUM_LETTERS)]; // min bits to store NUM_LETTERS - 1
+  }
+
+  hello_world_rom rom;
+
+  always {
+    rom.address = count.q;
+    tx_data = rom.letter;
+
+    new_tx = 0; // default to 0
+
+    case (state.q) {
+      state.IDLE:
+        count.d = 0;
+        if (new_rx &amp;&amp; rx_data == "h")
+          state.d = state.GREET;
+
+      state.GREET:
+        if (!tx_busy) {
+          count.d = count.q + 1;
+          new_tx = 1;
+          if (count.q == NUM_LETTERS - 1)
+            state.d = state.IDLE;
+        }
+    }
+  }
+}</pre>
+<p>The inputs and outputs should look a little familiar. They will connect to the <i>avr</i> module in <i>mojo_top</i>.</p>
+<p>We are using the constant <i>NUM_LETTERS</i> to specify how big the ROM is. In our case, we have 14 letters to send (this includes the new line characters).</p>
+<h3>FSMs</h3>
+<p>On line 15 we instantiate an FSM.</p>
+<pre class="brush:lucid;first-line:15">
+      fsm state = {IDLE, GREET};
+</pre>
+<p><b>fsm</b> is similar to <b>dff</b> in that they both have <i>.clk</i>, <i>.rst</i>, and <i>.d</i> inputs and a <i>.q</i> output. They behave much the same way, with one important exception. FSMs are used to store a state, not a value.</p>
+<p>In this example, our FSM can have one of two states, <i>IDLE</i> or <i>GREET</i>. In a more complicated example we could add more states to our FSM simply by adding them to the list.</p>
+<p>To access a state, we can use <i>state.IDLE</i> or <i>state.GREET</i>. This is done in the case statement (covered below) as well as when we assign a new state to <i>state</i>.</p>
+<h3>Functions</h3>
+<pre class="brush:lucid;first-line:17">
+    dff count[$clog2(NUM_LETTERS)]; // min bits to store NUM_LETTERS - 1
+</pre>
+<p>Here we are declaring a counter that will be use to keep track of what letter we are on. That means we need the counter to be able to count from 0 to <i>NUM_LETTERS</i> - 1. How do we know how many bits we will need when <i>NUM_LETTERS</i> is a constant? We could simply compute this by hand and type in the value. However, this is fragile since it would be easy to change <i>NUM_LETTERS</i> and forget to change the counter size. This is where the function <i>$clog2()</i> comes in handy. This function will compute the ceiling log base 2 of the value passed to it. This happens to be the number of bits you need to store the values from 0 to one minus the argument. How convenient! Just what we needed.</p>
+<p>It is important to note that this function can only be used with constants or constant expressions. This is because the tools will compute the value at runtime. Your circuit isn't doing anything fancy here. Computing this function in hardware would be far too complicated for a single line to properly handle.</p>
+<h3>Saying Hello</h3>
+<p>We instantiate a copy of our <i>hello_world_rom</i> and call it <i>rom</i> so we know what data to send.</p>
+<p>Since we are only going to be sending the letters from the ROM, we can wire them up directly to <i>tx_data</i>.</p>
+<pre class="brush:lucid;first-line:20">
+  hello_world_rom rom;
+
+  always {
+    rom.address = count.q;
+    tx_data = rom.letter;
+</pre>
+<p>We also can set the ROM's address to simply be the output of our counter since that's what the counter is for!</p>
+<h3>Case Statements</h3>
+<p><b>Case statements</b> are an easy way to do a bunch of different things depending on the value of something. You could always use a bunch of <b>if statements</b> but this can be way more compact and easier to read.</p>
+<p>The general syntax for a <b>case statement</b> is below.</p>
+<pre class="brush:lucid">case (expr) {
+  const: statements
+  const: statements
+  const: statements
+  const: statements
+  default: statements
+}</pre>
+<p>Basically, you pass in some expression and then have a bunch of blocks of statements that are considered based on the value of that expression. It sounds way more complicated than it is. Let's look at our example.</p>
+<pre class="brush:lucid;first-line:28">
+    case (state.q) {
+      state.IDLE:
+        count.d = 0;
+        if (new_rx &amp;&amp; rx_data == "h")
+          state.d = state.GREET;
+
+      state.GREET:
+        if (!tx_busy) {
+          count.d = count.q + 1;
+          new_tx = 1;
+          if (count.q == NUM_LETTERS - 1)
+            state.d = state.IDLE;
+        }
+    }
+</pre>
+<p>When <i>state.q</i> is <i>state.IDLE</i>, we only look at the lines 30-32. However, when <i>state.q</i> is <i>state.GREET</i> we only look at lines 35-40.</p>
+<h3>Putting it all Together</h3>
+<p>So how does it all work? Since <i>IDLE</i> was the first state we listed, it is, by default, the default state. You can specify an alternate default state by using the parameter <i>#INIT(STATE_NAME)</i>.</p>
+<p>Because we start in the idle state, the counter is set to 0 and we do nothing until we see "h". To wait for "h" we wait for <i>new_rx</i> to be high and <i>rx_data</i> to be "h".</p>
+<p>Once we receive an "h", we change states to <i>state.GREET</i></p>
+<p>Here we wait for <i>tx_busy</i> to be low to signal we can send data. We then increment the counter for next time and signal we have a new letter to send by setting <i>new_tx</i> high. Remember we already set <i>tx_data</i> as the output of our ROM.</p>
+<p>Once we are out of letters, we return to the idle state to wait for another "h".</p>
+<h2>Adding the Greeter to mojo_top</h2>
+<p>Finally we need to add the <i>greeter</i> module to <i>mojo_top</i></p>
+<p>First, let's add an instance of it.</p>
+<pre class="brush:lucid;first-line:16"> .clk(clk), .rst(~rst_n){
+    // the avr_interface module is used to talk to the AVR for access to the USB port and analog pins
+    avr_interface avr;
+
+    greeter greeter; // instance of our greeter
+  }</pre>
+<p>Next, we need to connect it up.</p>
+<pre class="brush:lucid;first-line:39">
+  greeter.new_rx = avr.new_rx_data;
+  greeter.rx_data = avr.rx_data;
+  avr.new_tx_data = greeter.new_tx;
+  avr.tx_data = greeter.tx_data;
+  greeter.tx_busy = avr.tx_busy;
+</pre>
+<p>That's it! Go ahead, build your project and load it on your Mojo. You can then fire up a serial monitor and send "h" to your board to be nicely greeted!</p>

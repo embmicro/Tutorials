@@ -1,0 +1,105 @@
+<p>Welcome to the Analog Inputs Tutorial! In this tutorial, you will learn how to read the analog inputs on the Mojo. To demo this, we will modify the <i>AVR Interface Project</i> so that the analog values are displayed on the LEDs.</p>
+<h2>Reading a Channel</h2>
+<p>We will start off by first reading only the <i>A0</i> input and displaying its value on all eight LEDs.</p>
+<p>First, make a new project based on the <i>AVR Interface Project</i>. This project already has the <i>avr_interface</i> module added and the basic connections wired up.</p>
+<h3>ADC to LEDs</h3>
+<p>We are going to create a new module named <b>adc_to_leds</b>. But before we do that, add the <i>Pulse Width Modulator</i> component to your project. It can be found under <i>LED Effects</i> in the <i>Component Selector</i>. We will be using this to fade the LEDs based on the voltage read.</p>
+<p>With all the components we need added, create a new module named <b>adc_to_leds</b> and fill it with the following.</p>
+<pre class="brush:lucid">
+module adc_to_leds (
+    input clk,               // clock
+    input rst,               // reset
+    output channel[4],       // channel we want to sample
+    input sample[10],        // sample value
+    input sample_channel[4], // channel the sample is from
+    input new_sample,        // 1 = new sample
+    output leds[8]           // output to leds
+  ) {
+  
+  .clk(clk), .rst(rst) {
+    pwm pwm(#WIDTH(10));     // 10bit PWM to show ADC value
+  }
+  
+  always {
+    channel = 0;             // always read channel 0
+    
+    pwm.value = sample;      // set the PWM to the ADC sample value
+    pwm.update = new_sample; // update the PWM when we have new samples
+    
+    leds = 8x{pwm.pulse};    // send PWM signal to all LEDs
+  }
+}</pre>
+<p>The way the ADC interface works is that we specify a channel we want to sample on <i>channel</i>. Then when a new sample is ready, the <i>new_sample</i> signal will go high. This signals that <i>sample</i> and <i>sample_channel</i> have valid data. The signal <i>sample_channel</i> specifies which channel the sample came from. This is important because as you start switching the channel to sample from, you are not guaranteed that the next sample will come from the new channel if a sample was already being read from the old channel. In this particular case, we are only ever reading one channel so all the samples must have come from channel 0.</p>
+<p>Note that the channel number corresponds to the analog input number. In other words, channel 0 is A0, channel 8 is A8, etc. If you set channel to an invalid number (like 15), the ADC is disabled and no channels are sampled. This is useful if you don't need the ADC running as it frees up the AVR to send and receive USB data faster.</p>
+<p>The PWM module is pretty simple. Since we set the <i>WIDTH</i> to 10, we specify a 10 bit value on <i>pwm.value</i> and set <i>pwm.update</i> to 1 whenever there is a new value. The output, <i>pwm_pulse</i>, is then a PWM signal with a duty cycle of <i>pwm.value</i>/2<sup>10</sup>.</p>
+<p>Finally, we simply duplicate the pwm output to all LEDs.</p>
+<h3>Connect it Up</h3>
+<p>We now need to add our new module to <i>mojo_top</i>.</p>
+<pre class="brush:lucid;first-line:23">
+    .rst(rst){
+      // the avr_interface module is used to talk to the AVR for access to the USB port and analog pins
+      avr_interface avr;
+      
+      adc_to_leds adc; // reads the analog inputs and shows them on the LEDs
+    }
+</pre>
+<p>We also need to connect it up.</p>
+<pre class="brush:lucid;first-line:52">
+    // connect the adc module
+    avr.channel = adc.channel;
+    adc.sample = avr.sample;
+    adc.sample_channel = avr.sample_channel;
+    adc.new_sample = avr.new_sample;
+    led = adc.leds;
+</pre>
+<p>Note that the lines where <i>avr.channel</i> and <i>led</i> were previously assigned should be removed.</p>
+<p>You should be able to build the project and load it onto your Mojo. With the project loaded, if you take a potentiometer and connected one end to +V (3.3v), the other to gnd (0v), and the arm to <i>A0</i> then you should be able to use the potentiometer to control the brightness of the LEDs.</p>
+<h2>Multiple Channels</h2>
+<p>This is super cool and all, but we have 8 inputs so it feels like a waste to only use one. Since there are conveniently 8 analog inputs and 8 LEDs, lets show each analog input on its own LED.</p>
+<p>To do this we only need to change the <i>adc_to_leds</i> module.</p>
+<pre class="brush:lucid">
+module adc_to_leds (
+    input clk,               // clock
+    input rst,               // reset
+    output channel[4],       // channel we want to sample
+    input sample[10],        // sample value
+    input sample_channel[4], // channel the sample is from
+    input new_sample,        // 1 = new sample
+    output leds[8]           // output to leds
+  ) {
+  
+  // This is used to convert 0 to 7 to its corresponding channel 0 to 1 and 4 to 9
+  const LED_TO_CHANNEL = {4d9,4d8,4d7,4d6,4d5,4d4,4d1,4d0};
+
+  // This is used to convert the sample channel to the corresponding LED
+  // Most channels are invalid and will never be seen so we use 'x' as don't cares
+  const CHANNEL_TO_LED = {4bx,4bx,4bx,4bx,4bx,4bx,4d7,4d6,4d5,4d4,4d3,4d2,4bx,4bx,4d1,4d0};
+  
+  .clk(clk), .rst(rst) {
+    pwm pwm[8](#WIDTH(10));                           // 10bit PWM to show ADC value
+    dff ch[4];                                        // channel counter
+  }
+  
+  always {
+    channel = LED_TO_CHANNEL[ch.q];                   // set the channel to sample
+    
+    pwm.value = 8x{{sample}};                         // all PWM values are from sample
+    pwm.update = 8b0;                                 // default to not updating
+    
+    if (new_sample) {                                 // when there is a new sample
+      pwm.update[CHANNEL_TO_LED[sample_channel]] = 1; // update the corresponding PWM channel
+      ch.d = ch.q + 1;                                // increment the channel we are sampling
+      if (ch.q == 7)                                  // there are only 8 channels (0 to 7)
+        ch.d = 0;                                     // restart at 0
+    }
+    
+    leds = pwm.pulse;                                 // send PWM signals to all LEDs
+  }
+}</pre>
+<p>The analog input channels are slightly strange on the Mojo in that A2 and A3 don't exist. To compensate for this, we use the constants <i>LED_TO_CHANNEL</i> and <i>CHANNEL_TO_LED</i> to map from our LED indices (0 to 7) to the ADC channel indices. Notice that there are 16 possible values for the channel, but we are only using 8 so we filled the remaining slots with <i>4bx</i>. This is because these values should never be used anyways and it gives the tools freedom to choose whatever makes our design simplest.</p>
+<p>Notice that we now have eight <i>pwm</i> modules as <i>pwm</i> is now an array. This is because we want a different PWM output for each of the eight LEDs.</p>
+<p>Remember that the PWM modules only update their values when <i>update</i> is 1. This allows us to set all the modules to have the same <i>value</i> input and only set the corresponding module's <i>update</i> to be 1 when we have a new sample.</p>
+<p>Line 26 has some interesting syntax. We are duplicating an array of sample 8 times. This builds a two dimensional array with dimensions of 8 by 10. If instead we simply did <i>8x{sample}</i> we would have a single dimensional array of 80 bits wide and the dimensions wouldn't match <i>pwm.value</i>. The reason this works is because <i>{sample}</i> is a 2D array with dimensions of 1 by 10. The <i>8x{}</i> part then duplicates the outermost dimension making it 8 by 10.</p>
+<p>Each time a new sample comes in, we increment the <i>ch</i> counter. This is so that we continue to sample all the channels in a round-robin fashion.</p>
+<p>If you now build and load your project, you should see all eight LEDs working independently. You can test each one by plugging in your potentiometer to each channel.</p>
+<p>That's it for this tutorial. You should now know how to make use of the analog inputs on the Mojo. A good challenge would be to modify <i>adc_to_leds</i> so that instead of using PWM to display the analog values, you set a single LED on to show which channel has the largest value. For example, if <i>A1</i> has the highest value, then LED[1] should be lit and the rest should be off. You should have all the tools for this if you've followed the tutorials up to this point. If you need help you can always <a href="/forum">visit our forum</a>.</p>

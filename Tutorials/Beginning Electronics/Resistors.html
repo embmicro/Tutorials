@@ -1,0 +1,47 @@
+<p>Resistors are one of the most common and simple parts used in electronics. So, what is a resistor? Why are they so useful?&nbsp;A resistor is anything that resists the flow of electricity. Now that is pretty broad isn't it. Pretty much everything resists the flow of electricity, except for super conductors, however "resistor" generally applies to a component that looks something like this.</p>
+<p><img alt="Bunch of resistors" src="{{media url="wysiwyg/basic-electronics/resistor.png"}}"/></p>
+<p>So what exactly do they do? As I said before, resistors resist electrical current. If your electrical current was water running through a hose, a bend in the hose would be a resistor.</p>
+<h4>Ohm</h4>
+<p>What is an ohm? Just like voltage or amperage, ohm is a unit. Ohm is used to measure how much a resistor resists the flow of electricity. The higher the rating the more it resists. Just like the hose, the more bends, or the tighter the bend, the more it resists the water. In this tutorial I use a LED as an example for the resistor. Exactly what an LED is will be covered in a later tutorial, for now all you need to know it that it is a type of light bulb. They are found in all sorts of electronics. They are commonly used to show that something is on, and are normally green or red.</p>
+<h4 class="heading">Ohm's Law</h4>
+<p>You may have heard about this before in school, the famous equation&nbsp;<strong>V=IR</strong>. This is very important when working with resistors. Using this formula you can find out how much current (amperage) will flow though a resistor at a set voltage. For this you want to use a variation of the formula (solve for I, I stands for current)&nbsp;<strong>I=V/R</strong>.</p>
+<p>So why would I&nbsp;<strong>ever</strong>&nbsp;need this? Here is a very common example, you have a nice LED (<strong>L</strong>ight&nbsp;<strong>E</strong>mitting&nbsp;<strong>D</strong>iode) and you want to use 5V to power it. If you decided to connect 5V directly to the LED then your LED&nbsp;<em>might</em>&nbsp;last for a second or two, it would then turn a black color and stop working, they also smell horrible, of course I have never done this.</p>
+<p>So how can you stop this? Well the title of this tutorial gives it away, a resistor! The average LED takes around 15mA of current and a red LED has a forward voltage of around 1.7V, the voltage it takes to make it light up. That means that the voltage across the resistor will be 5V - 1.7V = 3.3V. Using&nbsp;<strong>R=V/I</strong>&nbsp;you can calculate the required resistance to allow 15mA to pass though with that voltage. 3.3V / 0.015A = 220 Ohms. That means a 220 Ohm resistor will correcly protect and power your LED.&nbsp;</p>
+<p>For most basic LEDs a 220 Ohm resistor is perfectly fine to use and if it's slightly off than you will be fine. However, if you want to connect more than one LED together, or use how high power LEDs, you will have to calculate the correct biasing resistor.</p>
+<h4>Voltage Divider</h4>
+<p>Another fantastic use of resistors. A voltage divider does just that, it divides voltage. A common voltage divider looks like this.</p>
+<p><img alt="Voltage Divider" src="{{media url="wysiwyg/basic-electronics/divider.png"}}" /></p>
+<p>The output is equal to&nbsp;<strong>Vo=V*[R2/(R1+R2)]</strong>. If R1=R2 and VDD=5V then: 5*[x/(x+x)] 5*[x/2x] 5*1/2 Vo=2.5V The voltage divider is useful for reading a voltage with a microcontroller that is over the maximum voltage it can read. I have used a voltage divider to read 0-400V with a microcontroller running at 5V (meaning it can't read anything over 5V with out damage). The problem with voltage dividers is if you draw any current from the output then the voltage&nbsp;<strong>will</strong>&nbsp;drop. If you are using a microcontroller to read the voltage then the amount of current it draws from it is so little that the drop is not noticeable. The higher value you use for the resistors the more it is effected by current draw. For example if you used the ratio described above a 1ohm to 1ohm divider would be a lot less effected by current draw then a 1M ohm to 1M ohm (1M ohm = 1,000,000ohms). However the voltage divider draws power and that is calculated with Ohm's Law,&nbsp;<strong>I=V/(R1+R2)</strong>. So using 1ohm for R1 and R2 with VDD=5V you would draw 2.5A! However with 1M ohm for each you would draw only 0.0000025A! For most cases I use 10K ohm to 100K ohm for a nice balance.</p>
+<h4>What's the value?</h4>
+<p>Resistors are measured in ohms as you probably figured out by now, but how do we know how many ohms the resistor is? As you can see in the picture below resistors have colored bands on them. Those colors tell you what the value of the resistor is and the tolerance. Here is close up of a 220ohm resistor.</p>
+<p><img alt="220 Ohm Resistor" src="{{media url="wysiwyg/basic-electronics/220bands.jpg"}}" /></p>
+<p>Each color represents a number.</p>
+<table style="width: 100%; text-align: center;">
+    <tbody>
+        <tr>
+            <td style="padding: 0; text-align: center; border: 1px solid #ffffff; background-color: #000000; height: 15px;">&nbsp;</td>
+            <td style="padding: 0; text-align: center; border: 1px solid #ffffff; background-color: #a62e00; height: 15px;">&nbsp;</td>
+            <td style="padding: 0; text-align: center; border: 1px solid #ffffff; background-color: #ff0000; height: 15px;">&nbsp;</td>
+            <td style="padding: 0; text-align: center; border: 1px solid #ffffff; background-color: #ff9900; height: 15px;">&nbsp;</td>
+            <td style="padding: 0; text-align: center; border: 1px solid #ffffff; background-color: #ffff00; height: 15px;">&nbsp;</td>
+            <td style="padding: 0; text-align: center; border: 1px solid #ffffff; background-color: #00ff00; height: 15px;">&nbsp;</td>
+            <td style="padding: 0; text-align: center; border: 1px solid #ffffff; background-color: #0000ff; height: 15px;">&nbsp;</td>
+            <td style="padding: 0; text-align: center; border: 1px solid #ffffff; background-color: #ff00ff; height: 15px;">&nbsp;</td>
+            <td style="padding: 0; text-align: center; border: 1px solid #ffffff; background-color: #c0c0c0; height: 15px;">&nbsp;</td>
+            <td style="padding: 0; text-align: center; border: 1px solid #ffffff; background-color: #ffffff; height: 15px;">&nbsp;</td>
+        </tr>
+        <tr>
+            <td style="padding: 0; text-align: center; border: 1px solid #ffffff;">0</td>
+            <td style="padding: 0; text-align: center; border: 1px solid #ffffff;">1</td>
+            <td style="padding: 0; text-align: center; border: 1px solid #ffffff;">2</td>
+            <td style="padding: 0; text-align: center; border: 1px solid #ffffff;">3</td>
+            <td style="padding: 0; text-align: center; border: 1px solid #ffffff;">4</td>
+            <td style="padding: 0; text-align: center; border: 1px solid #ffffff;">5</td>
+            <td style="padding: 0; text-align: center; border: 1px solid #ffffff;">6</td>
+            <td style="padding: 0; text-align: center; border: 1px solid #ffffff;">7</td>
+            <td style="padding: 0; text-align: center; border: 1px solid #ffffff;">8</td>
+            <td style="padding: 0; text-align: center; border: 1px solid #ffffff;">9</td>
+        </tr>
+    </tbody>
+</table>
+<p>The first two bands are the 1st and 2nd digits. In this case the two red bands on the left. So that makes red red or 22. The next band is the multiplier. You add that many 0s to the end of your original number. On this one it is brown, 1. That means our resistor is 220ohm. If it were a black stripe it would be 22ohm or if it were another red strip it would be 2200ohm or 2.2K ohm. Wait! What is that other band for? This band tells you the tolerance. Gold is +-5%, silver is +-10%, and if it is missing it is +-20%. In our case it is gold so the value of the resistor is 220ohm+-5% or 209-231ohm.</p>

@@ -1,0 +1,78 @@
+<p><span style="color: #ff0000;"><strong>The Mojo Loader is no longer needed if you are using the <a href="https://embeddedmicro.com/tutorials/mojo-software-and-updates/mojo-ide">Mojo IDE</a>. It is only required if you need to load a .bin file created outside the IDE.</strong></span></p>
+<p><img style="width: 450px; height: 176px;" alt="Mojo Loader" src="{{media url="wysiwyg//mojo-loader/mojo_loader.jpg"}}" /></p>
+<p>This program will be used to load the .bin files you create with ISE to the Mojo.</p>
+<p>Download the version of the loader for your operating system.&nbsp;</p>
+<p>Version 1.3.0&nbsp;<span style="color: #ff0000;">(compatible only with firmware 1.2.0, the Arduino compatible firmware, and above)</span></p>
+<p>
+    This version uses the serial port library JSSC instead of RXTX used in older versions.
+</p>
+<ul>
+    <li><a href="{{media url="wysiwyg/mojo-loader/mojo-loader-1.3.0-linux32.tgz"}}">Linux 32 bit</a></li>
+    <li><a href="{{media url="wysiwyg/mojo-loader/mojo-loader-1.3.0-linux64.tgz"}}">Linux 64 bit</a></li>
+    <li><a href="{{media url="wysiwyg/mojo-loader/mojo-loader-1.3.0.exe"}}">Windows Installer</a></li>
+    <li><a href="{{media url="wysiwyg/mojo-loader/mojo-loader-1.3.0-windows.zip"}}">Windows Files</a></li>
+</ul>
+<p>Version 1.2.2&nbsp;<span style="color: #ff0000;">(compatible only with firmware 1.2.0, the Arduino compatible firmware, and above)</span></p>
+<ul>
+    <li><a href="{{media url="wysiwyg/mojo-loader/mojo-loader-1.2.2-linux32.tgz"}}">Linux 32 bit</a></li>
+    <li><a href="{{media url="wysiwyg/mojo-loader/mojo-loader-1.2.2-linux64.tgz"}}">Linux 64 bit</a></li>
+    <li><a href="{{media url="wysiwyg/mojo-loader/mojo-loader-1.2.2.exe"}}">Windows Installer</a></li>
+    <li><a href="{{media url="wysiwyg/mojo-loader/mojo-loader-1.2.2-windows.zip"}}">Windows Files</a></li>
+</ul>
+<p>Version 1.1.2&nbsp;<span style="color: #ff0000;">(for older firmware versions only. To update the firmware <a href="http://embeddedmicro.com/tutorials/mojo/updating-the-mojo">click here</a>)</span></p>
+<ul>
+    <li><a href="{{media url="wysiwyg/mojo-loader/mojo-loader-1.1.2-linux32.tgz"}}">Linux 32 bit</a></li>
+    <li><a href="{{media url="wysiwyg/mojo-loader/mojo-loader-1.1.2-linux64.tgz"}}">Linux 64 bit</a></li>
+    <li><a href="{{media url="wysiwyg/mojo-loader/mojo-loader-1.1.2-windows.zip"}}">Windows</a></li>
+</ul>
+<p>Extract the files to where you would like to install it.</p>
+<h3>Linux</h3>
+<p>If you are using Linux you need to have a JRE version 7 or newer to run this. On Ubuntu you can enter</p>
+<pre class="brush: bash">sudo apt-get install openjdk-7-jre-headless</pre>
+<p>Note that some versions of Ubuntu (12.04 and earlier) may need to be configured to use the proper version of Java. To configure the default version, type the following and select OpenJDK 7.</p>
+<pre class="brush: bash">sudo update-alternatives --config java</pre>
+<p>You will also need to be a member of the dialout group to be able to use the serial port. You can add yourself by entering this line.</p>
+<pre class="brush: bash">sudo usermod -a -G dialout `whoami`</pre>
+<p>You will have to log out or restart your computer for that to take effect.</p>
+<p>The <strong>99-mojo.rules</strong> file in the driver folder should be moved to <strong>/etc/udev/rules.d/</strong> This file prevents Ubuntu from thinking the Mojo is a modem and locking it up for about a minute after it's plugged in. You don't strictly need this file, but if you experience a long lag after plugging it in, make sure to add it.</p>
+<h3>Windows (version 1.2.1)</h3>
+<p><strong><span style="color: #ff0000;">The new installer should install everything for you, including the drivers. If for some reason it doesn't install the drivers correctly, you can follow the steps below.</span></strong></p>
+<p>This has been tested on Windows 8.1 Pro 64bit and should also work with Windows 7.</p>
+<p>The Mojo V3 features an ATmega32U4 that has an Arduino compatible bootloader and code installed. These uses Windows's built in driver for USB-&gt;Serial devices. However, by default Windows will not recognize the Mojo. You will need to point it to the driver.</p>
+<p>After you've extracted the files for the program to where you'd like to keep it, you need to plug in your Mojo. Windows should pop up a message saying it can't find the driver for your device.&nbsp;</p>
+<p>Open the&nbsp;<strong>Device Manager</strong>&nbsp;(for Windows 7, Start-&gt;Contol Panel-&gt;Hardware and Sound-&gt;Device Manager). You should see USB IO Board listed under&nbsp;<strong>Other devices</strong>&nbsp;with a yellow triangle.</p>
+<p><img alt="USB IO Board Mojo" src="{{media url="wysiwyg/mojo-loader/usbdev.png"}}" /></p>
+<p>Right click on&nbsp;<strong>USB IO Board</strong>&nbsp;and select&nbsp;<strong>Properties</strong>. On the top of the new window you should have some tabs. Click the&nbsp;<strong>Driver</strong>&nbsp;tab.</p>
+<p>Under the Driver tab you should have a button labeled&nbsp;<strong>Update Driver...</strong>&nbsp;click that.</p>
+<p>In the new windows choose&nbsp;<strong>Browse my computer for driver software</strong>.</p>
+<p><img alt="Browse for driver" src="{{media url="wysiwyg/mojo-loader/browse.png"}}" /></p>
+<p>In the next windows, choose&nbsp;<strong>Let me pick from a list of device drivers on my computer</strong>.</p>
+<p><img alt="Pick device driver" src="{{media url="wysiwyg/mojo-loader/pick.png"}}" /></p>
+<p>Scroll down and select&nbsp;<strong>Ports (COM &amp; LPT)</strong> then select&nbsp;<strong>Next</strong>.</p>
+<p><img alt="Select device" src="{{media url="wysiwyg/mojo-loader/com.png"}}" /></p>
+<p>The next windows presents you with a set of drivers. Click the button&nbsp;<strong>Have Disk...</strong></p>
+<p><img alt="Choose driver" src="{{media url="wysiwyg/mojo-loader/disk.png"}}" /></p>
+<p>In the dialog that pops up, click&nbsp;<strong>Browse...</strong> and locate the driver file where you extracted the Mojo Loader. The&nbsp;<strong>.inf</strong> file is in the driver folder.</p>
+<p><img alt="Locate driver" src="{{media url="wysiwyg/mojo-loader/file.png"}}" /></p>
+<p>Click&nbsp;<strong>OK</strong>.</p>
+<p>The updated window shows the available&nbsp;drivers. Select&nbsp;<strong>Mojo V3</strong> and click&nbsp;<strong>Next</strong>.</p>
+<p><img alt="Driver List" src="{{media url="wysiwyg/mojo-loader/driver.png"}}" /></p>
+<p>When prompted choose to install the driver.</p>
+<p>Once the driver is installed, the Mojo should now show up in the Device Manager as&nbsp;<strong>Mojo V3</strong>.</p>
+<p><img alt="Mojo V3 Driver Loaded" src="{{media url="wysiwyg/mojo-loader/loaded.png"}}" /></p>
+<p>Take note of the&nbsp;<strong>COM</strong>&nbsp;port the Mojo was assigned as you will need to specify it to the Mojo Loader. In this case it is&nbsp;<strong>COM3</strong>, but yours may vary.</p>
+<h3>Windows (version 1.1.2, not recommended)</h3>
+<p>The V2 of the Mojo features a USB port which uses Windows's built in driver for USB-&gt;Serial devices. However, by default Windows will not recognize the Mojo. You will need to point it to the driver.</p>
+<p>If you are using Windows 8 you will need to disable driver signature enforcement. You can find instructions on how to do this <a href="http://www.craftedge.com/tutorials/driver_install_windows8/driver_install_win8.html">here</a>.</p>
+<p>After you've extracted the files for the program to where you'd like to keep it, you need to plug in your Mojo. Windows should pop up a message saying it can't find the driver for your device.&nbsp;</p>
+<p>Open the <strong>Device Manager</strong> (for Windows 7, Start-&gt;Contol Panel-&gt;Hardware and Sound-&gt;Device Manager). You should see Mojo V2 listed under&nbsp;<strong>Other devices</strong> with a yellow triangle.</p>
+<p><img style="width: 463px; height: 581px;" alt="Device Manager" src="{{media url="wysiwyg/mojo-loader/deviceManager.png"}}" /></p>
+<p>Right click on&nbsp;<strong>Mojo V2</strong> and select&nbsp;<strong>Properties</strong>. On the top of the new window you should have three tabs. Click the&nbsp;<strong>Driver</strong> tab.</p>
+<p>Under the Driver tab you should have a button labeled&nbsp;<strong>Update Driver...</strong> click that.</p>
+<p>In the new windows choose&nbsp;<strong>Browse my computer for driver software</strong>.</p>
+<p>Use the&nbsp;<strong>Browse...</strong> button to select the root folder for your Mojo Loader install. The folder name should be&nbsp;<strong>mojo-loader-x.x.x</strong> where the x is the version number.</p>
+<p>Click&nbsp;<strong>Next</strong>. You will get a warning saying Windows can't verify the publisher of the driver. Click&nbsp;<strong>Install this driver software anyway</strong>.</p>
+<p>Once it is done, you should get a message saying Windows has installed the driver for&nbsp;<strong>Mojo CDC-ACM Virtual Serial Port</strong>.</p>
+<p>Go ahead and close the windows. Your&nbsp;<strong>Device Manager</strong> should now look like this.</p>
+<p><img style="width: 463px; height: 581px;" alt="Driver Installed" src="{{media url="wysiwyg/mojo-loader/deviceManagerDone.png"}}" /></p>
+<p>Take note of the&nbsp;<strong>COM</strong> port the Mojo was assigned as you will need to specify it to the Mojo Loader. In this case it is&nbsp;<strong>COM8</strong>, but yours may vary.</p>

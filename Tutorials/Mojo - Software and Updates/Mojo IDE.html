@@ -1,0 +1,154 @@
+<p>The Mojo IDE now supports <a href="/tutorials/lucid">Lucid</a>!</p>
+<h2>Download Links Version B1.3.6</h2>
+<p>
+<ul>
+    <li><a href="https://embeddedmicro.com/ide/mojo-ide-B1.3.6.exe">Windows Installer (exe)</a></li>
+    <li><a href="https://embeddedmicro.com/ide/mojo-ide-B1.3.6-windows.zip">Windows Files</a></li>
+    <li><a href="https://embeddedmicro.com/ide/mojo-ide-B1.3.6-linux64.tgz">Linux (64 bit)</a></li>
+    <li><a href="https://embeddedmicro.com/ide/mojo-ide-B1.3.6-linux32.tgz">Linux (32 bit)</a></li>
+</ul>
+</p>
+<h3>
+    New in B1.3.6
+</h3>
+<p>
+    Bug fixes with adding component dependencies and ternary constant calculations.
+</p>
+<h3>
+    New in B1.3.5
+</h3>
+<p>
+    Bug fixes and improved debug signal selection.
+</p>
+<h3>
+    New in B1.3.4
+</h3>
+<p>
+    Bug fixes and ability fo clone projects (File->Clone Project).
+</p>
+<h3>
+    New in B1.3.3
+</h3>
+<p>
+    Fixed some Verilog macro processing bugs.
+</p>
+<h3>
+    New in B1.3.2
+</h3>
+<p>
+<ul>
+    <li>Improved debugging. Your project now just needs to have the reg_interface module hooked up (see the {{widget type="cms/widget_page_link" anchor_text="Register Interface Tutorial" template="cms/widget/link/link_inline.phtml" page_id="73"}} for help) and you can then click the little bug icon. This will launch a new dialog that will show you the signals in your project. You can then check the signals you want to capture and enter the number of samples to take. Clicking debug will cause the IDE to build your project with modifications to capture those signals. With the built project on your Mojo, you can use the Wave Capture tool to capture and view the signals.</li>
+    <li><img src="{{media url="wysiwyg/mojo-ide/Screenshot_from_2016-06-07_16-17-32.png"}}" alt="" /></li>
+    <li>Minor bug fixes.</li>
+</ul>
+</p>
+<h3>
+    New in B1.3.1
+</h3>
+<p>
+<ul>
+    <li>Minor bug fixes.</li>
+</ul>
+</p>
+<h3>
+    New in B1.3.0
+</h3>
+<p>
+<ul>
+    <li>Added Wave Capture tool to help with debugging.</li>
+    <li><img src="{{media url="wysiwyg/mojo-ide/wave.gif"}}" alt="Wave Capture" /></li>
+    <li>Updated the auto-updater to show progress when downloading update files.</li>
+    <li>Added feedback form (Help->Send Feedback).</li>
+    <li>Crash reports are now sent directly through the IDE (not external email client).</li>
+    <li>Added Verilog module template.</li>
+    <li>Bug fixes for Verilog/Lucid integration.</li>
+    <li>Bug fix for arrays of size 1.</li>
+</ul>
+</p>
+<h3>
+    New in B1.2.11
+</h3>
+<p>
+<ul>
+    <li>Fixed bug that was removing parameter values from Verilog code.</li>
+</ul>
+</p>
+<h3>
+    New in B1.2.10
+</h3>
+<p>
+<ul>
+    <li>Fixed bug that was crashing projects with IP cores.</li>
+</ul>
+</p>
+<h3>
+    New in B1.2.9
+</h3>
+<p>
+<ul>
+    <li>New improved project tree that looks better in Windows.</li>
+    <li>Added "Import Source" feature.</li>
+    <li>Fixed load to flash bug for the latest batch of Mojos.</li>
+    <li>Lucid modules can be used in Verilog code again, but parameters can currently only be numbers (or expressions of only numbers such as "5 + 2").</li>
+</ul>
+</p>
+<h3>
+    Previous Major Release
+</h3>
+<h3>Download Links Version B1.1.9c</h3>
+<p>
+<ul>
+    <li><a href="https://embeddedmicro.com/ide/mojo-ide-B1.1.9c.exe">Windows Installer (exe)</a></li>
+    <li><a href="https://embeddedmicro.com/ide/mojo-ide-B1.1.9c-windows.zip">Windows Files</a></li>
+    <li><a href="https://embeddedmicro.com/ide/mojo-ide-B1.1.9c-linux64.tgz">Linux (64 bit)</a></li>
+    <li><a href="https://embeddedmicro.com/ide/mojo-ide-B1.1.9c-linux32.tgz">Linux (32 bit)</a></li>
+</ul>
+</p>
+<h2>Linux</h2>
+<p>If you are using Linux you need to have a JRE version 7 or newer to run this. On Ubuntu you can enter</p>
+<pre class="brush: bash">sudo apt-get install openjdk-7-jre-headless</pre>
+<p>Note that some versions of Ubuntu (12.04 and earlier) may need to be configured to use the proper version of Java. To configure the default version, type the following and select OpenJDK 7.</p>
+<pre class="brush: bash">sudo update-alternatives --config java</pre>
+<p>You will also need to be a member of the dialout group to be able to use the serial port. You can add yourself by entering this line.</p>
+<pre class="brush: bash">sudo usermod -a -G dialout `whoami`</pre>
+<p>You will have to log out or restart your computer for that to take effect.</p>
+<p>The <strong>99-mojo.rules</strong> file in the driver folder should be moved to <strong>/etc/udev/rules.d/</strong> This file prevents Ubuntu from thinking the Mojo is a modem and locking it up for about a minute after it's plugged in.</p>
+<h3>Ubuntu 15.10</h3>
+<p>
+    In Ubuntu 15.10, there seems to be an issue with OpenJDK. Instead, use Oracle's JRE.
+</p>
+<pre class="brush:bash">sudo add-apt-repository ppa:webupd8team/java
+sudo apt-get update
+sudo apt-get install oracle-java8-installer
+sudo apt-get install oracle-java8-set-default</pre>
+<h2>Features</h2>
+<h3>Real Time Error Checking</h3>
+<p>When writing Lucid, the Mojo IDE will perform real-time checks on your code and let you know if something isn't right.</p>
+<p><img alt="" src="/media/magpleasure/mpblog/upload/0/d/0d622439e920ff4a11951ea041895674.png" /></p>
+<p>In the above image, you can see the signal <strong>spi_miso</strong> was missing the underscore. The Mojo IDE underlines all the errors it finds in red and all the warnings in yellow. By hovering your cursor over it, a tool-tip pops up telling you what is wrong. This means you can easily spot errors without having to attempt to build your project then scroll through tons of text to look for the line number and error message.</p>
+<h3>Components</h3>
+<p>One of the best features of the Mojo IDE is the components library. There are lots of times that you need to do the same thing and having a reusable component just makes your life that much easier.</p>
+<p><img alt="" src="/media/magpleasure/mpblog/upload/f/d/fd3437560afd2d2aaa5936d570cb178b.png" /></p>
+<p>By going to <strong>Project-&gt;Add Components...</strong> you can easily choose the components you want to add to your project. Once you add it to your project, the component's source code can be opened so you can see how everything works.</p>
+<h3>Example Projects</h3>
+<p>Having components is great, but sometimes you need to see a full project to see how to do something. For this, we have example projects that you can make a copy of when creating a new project.</p>
+<p><img alt="" src="/media/magpleasure/mpblog/upload/e/b/ebdedcdeb7072db0a070d218235a8ff3.png" /></p>
+<p>Here we will be copying the <strong>Hello World!</strong> project which sends "Hello World!" over USB every time you send "h".</p>
+<p>Once you create your new project from the example, you are free to edit it however you would like.</p>
+<p>We will have an example project to accompany every Lucid tutorial so that you can easily compare your project to example if you get stuck, or if you just want to learn by examples.</p>
+<h3>Auto-updates</h3>
+<p>The component library and example project's versions are independent of the Mojo IDE. This allows us to push updates to the library and example projects between Mojo IDE updates. When you open the Mojo IDE, it checks to see if a new version is available. If there is, it will prompt you to update the IDE, or the library.</p>
+<h3>Auto-complete</h3>
+<p>When writing Lucid code, the Mojo IDE will give you suggestions for what you are typing.</p>
+<p><img alt="" src="/media/magpleasure/mpblog/upload/b/9/b932475c52a9e735e0f6ef501955f12d.png" /></p>
+<p>When you are accessing a module's signal, it will list all the available signals so that you don't have to keep looking back and forth between two files.</p>
+<p><img alt="" src="/media/magpleasure/mpblog/upload/e/5/e5d32c161efd1b4684873ce8321bb8d0.png" /></p>
+<p>The text is matched by searching for words that contain the typed letters in the order they were typed. They don't have to be next to each other. In the following example, " <strong>ta</strong>" is matched to "<strong>t</strong>x_d<strong>a</strong>ta" and "rx_da<strong>ta</strong>".</p>
+<p><img alt="" src="/media/magpleasure/mpblog/upload/1/c/1c4fc26dec0efa15c65254c0dce9fd60.png" /></p>
+<h3>Choose Your Style</h3>
+<p>We realize that not everyone likes the default dark theme. You can now choose the light or dark side!</p>
+<p><img alt="" src="/media/magpleasure/mpblog/upload/1/3/139d3274a9ef81749a0e747ce1324abf.png" /></p>
+<h3>Editor Splitting</h3>
+<p>You can split the editor window horizontally or vertically to show multiple files at once. Simply right click on an editor and select <strong>Split Horizontal</strong> or <strong>Split Vertical</strong> or press <strong>Ctrl+H</strong> or <strong>Ctrl+G</strong> respectively. You are free to drag and drop tabs between each open editor.</p>
+<p>Have lots of space? We got you covered.</p>
+<p><img alt="" src="/media/magpleasure/mpblog/upload/9/9/99b22dc8f79cc624522683989aefa400.png" /></p>

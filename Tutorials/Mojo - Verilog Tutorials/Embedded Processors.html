@@ -1,0 +1,171 @@
+<p><span style="color: #ff0000;">This tutorial is an advanced topic and is not recommend for beginners. If you want to write software in your design we recommend using the microcontroller on the Mojo before trying to embed a processor as the tools and setup can be very messy. Checkout <a href="/tutorials/mojo/memory-mapping-tutorial">this tutorial</a> for more information.</span></p>
+<p>This tutorial will outline how to add a <b>MicroBlaze MCS</b> to your project. The <b>MicroBlazeMCS</b> is a 32bit microprocessor core provided by Xilinx. It will allow you to write <b>C/C++</b> code that will interact with the rest of your design. While this can be very helpful in many projects, setting it up can be a bit confusing. This tutorial will hopefully demystify the process.</p>
+<p>Like most tutorials here, the first step is downloading the <a href="https://github.com/embmicro/mojo-base-project/archive/master.zip" target="_blank">Mojo Base Project</a>.</p>
+<h3>Generating the core</h3>
+<p>Go ahead and open up your fresh project in <b>ISE</b>.</p>
+<p>Right click on somewhere in the <b>Hierarchy</b> panel on the left and select <b>New Source...</b></p>
+<p>Select <b>IP (CORE Generator &amp; Architecture Wizard)</b> and set the <b>File Name</b> to <b>microblaze_mcs</b> and click <b>Next</b>.</p>
+<p>Expand <b>Embedded Processing</b> and <b>Processor</b> to find <b>MicroBlaze MCS</b>. Choose that and click <b>Next</b>.</p>
+<p>Click <b>Finish</b>.</p>
+<p>The configuration wizard should now show up.</p>
+<p><img src="{{media url="wysiwyg/MicroBlaze/coregen_microblaze.resized.png"}}" alt="CORE Generator for MicroBlaze MCS" /></p>
+<p>In the first tab, <b>MCS</b>, change the <b>Input Clock Frequency</b> to 50 since we will be running the core at 50MHz.</p>
+<p>Take note of the <b>Instance Hierarchical Design Name,</b> it is very important later on. For now we'll just leave it at the default <b>mcs_0</b>.</p>
+<p>Set <b>Memory Size</b> to <b>16KB</b>. The absolute minimum required for this project is <b>8KB</b>, but if you add any extra code, you will want a little more.</p>
+<p>The <b>Memory Size</b> option is important because it dictates how much memory the processors has to store your code and variables. You will want to use a little memory as possible that will still fit your program since it uses valuable block RAM inside the FPGA.</p>
+<p>If you look at the top of the window you will see tabs for all the different peripherals available to you.</p>
+<p>In this tutorial, we will be using a timer to control how fast some LEDs blink. That means we will need a <b>FIT</b> (<b>F</b>ixed <b>I</b>nterval <b>T</b>imer) and some <b>GPO</b> (<b>G</b>eneral <b>P</b>urpose <b>O</b>utputs). </p>
+<p>In the <b>FIT</b> tab, check the <b>Use Timer</b> box.</p>
+<p>We want our timer to count the number of <b>milliseconds</b> that elapse which will allow us to create a flexible delay function. Since the Mojo uses a 50MHz clock, we want the <b>Number of Clocks Between Strobes</b> to be 50,000,000 / 1,000 = 50,000.</p>
+<p>We will also want the timer to generate an interrupt, so check the <b>Generate Interrupt</b> box.</p>
+<p><img src="{{media url="wysiwyg/MicroBlaze/coregen-fit.resized.png"}}" alt="Fixed Interval Timer MicroBlaze MCS" /></p>
+<p>Head over to the <b>GPO</b> tab since we need some outputs for the LEDs.</p>
+<p>In the <b>General Purpose Output 1</b> box check the box <b>Use GPO</b>.</p>
+<p>We only have 8 LEDs, so change the <b>Number of Bits</b> to 8.</p>
+<p>The <b>Initial Value of GPO</b> is fine as the default.</p>
+<p><img src="{{media url="wysiwyg/MicroBlaze/gpo_microblaze.resized.png"}}" alt="MicroBlaze GPO Panel" /></p>
+<p>Those are the only peripherals we need for this project, but feel free to check out the other ones as they may come in handy for your own projects. If you really want to get your feet wet, head over to <a href="http://www.xilinx.com/tools/mb_mcs.htm" target="_blank">Xilinx's documentation</a>.</p>
+<p>Click <b>Generate</b> to generate the core!</p>
+<h3>Adding the core to your project</h3>
+<p>After the core is done generating (it can take a while), you should see <b>microblaze_mcs</b> as a file in your project.</p>
+<p>We need to now instantiate this in our design. Open up <b>mojo_top.v</b> in your editor of choice.</p>
+<p>Click on the <b>microblaze_mcs</b> source file and expand <b>CORE Generator</b> in the <b>Processes</b> panel. Double click on <b>View HDL Instantiation Template</b>. This file contains an <em>example</em> instantiation of the core. You can refer to this file to make sure you get all the port names right.</p>
+<p><img src="{{media url="wysiwyg/MicroBlaze/instantiation_template.png"}}" alt="Instantiation Template" /></p>
+<p>It's usually a good idea to just copy/paste it into your design and make the edits you need.</p>
+<p>In our case, we need to add it to <b>mojo_top.v</b>. The file should look as follows.</p>
+<pre class="brush:verilog">module mojo_top(
+    // 50MHz clock input
+    input clk,
+    // Input from reset button (active low)
+    input rst_n,
+    // cclk input from AVR, high when AVR is ready
+    input cclk,
+    // Outputs to the 8 onboard LEDs
+    output[7:0]led,
+    // AVR SPI connections
+    output spi_miso,
+    input spi_ss,
+    input spi_mosi,
+    input spi_sck,
+    // AVR ADC channel select
+    output [3:0] spi_channel,
+    // Serial connections
+    input avr_tx, // AVR Tx => FPGA Rx
+    output avr_rx, // AVR Rx => FPGA Tx
+    input avr_rx_busy // AVR Rx buffer full
+  );
+  
+  wire rst = ~rst_n; // make reset active high
+  
+  // these signals should be high-z when not used
+  assign spi_miso = 1'bz;
+  assign avr_rx = 1'bz;
+  assign spi_channel = 4'bzzzz;
+  
+  microblaze_mcs mcs_0 (
+    .Clk(clk), // input Clk
+    .Reset(rst), // input Reset
+    .FIT1_Interrupt(), // output FIT1_Interrupt
+    .FIT1_Toggle(), // output FIT1_Toggle
+    .GPO1(led), // output [7 : 0] GPO1
+    .INTC_IRQ() // output INTC_IRQ
+  );
+  
+endmodule</pre>
+<p>Notice I made the instance name <b>mcs_0</b>. This <b>MUST</b> match the name you use when you generate the core. If you don't instantiate the core at the top of your design, you must include the path in the name in CORE Gen. For example, if you have your core in a module called <b>magic_sauce</b> then the path would be <b>magic_sauce/mcs_0</b>.</p>
+<p>In our design, we don't care about any of the outputs except <b>GPO1</b>, which is hooked up to the LEDs.</p>
+<p>The last step is to run the setup script that was generated. Open the <b>Tcl Console</b> by clicking <b>View-&gt;Panels-&gt;Tcl Console</b>. In the <b>Tcl Console</b> tab near the bottom of ISE, enter the following line and hit enter.</p>
+<pre class="brush:bash">source ipcore_dir/microblaze_mcs_setup.tcl</pre>
+<p>It should print the following.</p>
+<pre class="brush:bash">microblaze_mcs_setup: Found 1 MicroBlaze MCS core.
+microblaze_mcs_setup: Added "-bm" option for "microblaze_mcs.bmm" to ngdbuild command...
+microblaze_mcs_setup: Done.</pre>
+<p>This changes your project settings to accommodate the new core. Note that these changes don't seem to be persistant and you will likely need to run the script each time you open ISE.</p>
+<p>There seems to be a bug in ISE which causes one of these settings to be wrong.</p>
+<p>Right click on <b>Implement Design</b> in the Processes panel with <b>mojo_top</b> selected in the Hierarchy panel. Choose <b>Properties</b>.</p>
+<p>Under the <b>Other Ngdbuild Command Line Options</b> you should see <b>-bm "ipcore_dir/microblaze_mcs.bmm"</b>. Replace that with <b>-bm "../ipcore_dir/microblaze_mcs.bmm"</b></p>
+<h3>Setting up XPS</h3>
+<p>Now we need to actually setup XPS, the IDE Xilinx provides that will compile our code.</p>
+<p>When you installed ISE, you actually installed XPS too!</p>
+<p>If you are using <b>Ubuntu</b> then you need to issue the following command because Ubuntu doesn't have a program called <b>gmake</b>, which is really just <b>make</b>.</p>
+<pre class="brush:bash">sudo ln -s /usr/bin/make /usr/bin/gmake</pre>
+<p>If you are using <b>Linux</b> you can create a snazzy launcher by running the following.</p>
+<pre class="brush:bash">sudo gnome-desktop-item-edit /usr/share/applications/ --create-new</pre>
+<p>Under <b>Name</b> enter <b>XPS SDK</b>.</p>
+<p>Under <b>Command</b> enter <b>/opt/Xilinx/14.6/ISE_DS/EDK/bin/lin64/xsdk</b>, note that your version of ISE may vary.</p>
+<p>You can find an icon at <b>/opt/Xilinx/14.6/ISE_DS/EDK/eclipse/lin64/eclipse/plugins/com.xilinx.sdk.product_1.0.0/icons/xps_sdk_32.png</b></p>
+<p><b><img src="{{media url="wysiwyg/MicroBlaze/launcher.png"}}" alt="Create XPS Launcher" /></b></p>
+<p>Once you have <b>XPS</b> open, there are a few hoops to jump through before the coding can begin.</p>
+<h3>Creating the project</h3>
+<p>Click <b>File-&gt;New-&gt;Other...</b> </p>
+<p>Under <b>Xilinx</b> choose <b>Hardware Platform Specification</b> and click <b>Next</b>.</p>
+<p>Enter <b>MojoDemo</b> as the <b>Project Name</b>. Note that you can't have spaces in your project names.</p>
+<p>Under <b>Target Hardware Specification</b> click <b>Browse...</b> and navigate to the <b>ipcore_dir</b>. Select <b>microblaze_mcs_sdk.xml</b>.</p>
+<p><img src="{{media url="wysiwyg/MicroBlaze/xps_hardware_project.resized.png"}}" alt="XPS Hardware Project" /></p>
+<p>Click <b>Finish</b>.</p>
+<p>Now you can create a project for your actual code. Click <b>File-&gt;New-&gt;Other...</b> and choose <b>Application Project</b> under <b>Xilinx</b>.</p>
+<p>Under <b>Project Name</b> enter <b>LED_Controller</b>.</p>
+<p>Make sure that <b>Hardware Platform</b> is set to <b>MojoDemo</b> and the processor is <b>microblaze_mcs</b>.</p>
+<p>Under <b>Target Software</b> make sure the <b>OS Platform</b> is set to <b>standalone</b>, <b>Language</b> is set to <b>C</b>, and <b>Board Support Package</b> is set to <b>Create New -&gt;  LED_Controller_bsp</b>.</p>
+<p><img src="{{media url="wysiwyg/MicroBlaze/xps_app_project.png"}}" alt="XPS Application Project" /></p>
+<p>Click <b>Next</b>.</p>
+<p>Choose <b>Empty Application</b> for a <b>Template</b> and click <b>Finish</b>.</p>
+<p>Open the project folder on the left for your project, <b>LED_Controller</b>. Right click the <b>src</b> folder and choose <b>New-&gt;Source File</b>. Enter <b>LEDBlinker.c</b> as the file name and click <b>Finish</b>.</p>
+<p>Open the new file and paste in the following code.</p>
+<pre class="brush:c">#include &lt;xparameters.h&gt;
+#include &lt;xiomodule.h&gt;
+
+XIOModule gpo;
+volatile u32 ct = 0;
+
+void timerTick(void* ref) {
+  ct++; // increase ct every millisecond
+}
+
+void delay(u32 ms) {
+  ct = 0; // set the counter to 0
+  while (ct &lt; ms) // wait for ms number of milliseconds
+    ;
+}
+
+int main() {
+  XIOModule_Initialize(&amp;gpo, XPAR_IOMODULE_0_DEVICE_ID); // Initialize the GPO module
+
+  microblaze_register_handler(XIOModule_DeviceInterruptHandler,
+                              XPAR_IOMODULE_0_DEVICE_ID); // register the interrupt handler
+
+  XIOModule_Start(&amp;gpo); // start the GPO module
+
+  XIOModule_Connect(&amp;gpo, XIN_IOMODULE_FIT_1_INTERRUPT_INTR, timerTick,
+                    NULL); // register timerTick() as our interrupt handler
+  XIOModule_Enable(&amp;gpo, XIN_IOMODULE_FIT_1_INTERRUPT_INTR); // enable the interrupt
+
+  microblaze_enable_interrupts(); // enable global interrupts
+
+  u8 leds = 0;
+  while (1) {
+    // write the LED value to port 1 (you can have up to 4 ports)
+    XIOModule_DiscreteWrite(&amp;gpo, 1, leds++); 
+    delay(1000); // delay one second
+  }
+}
+</pre>
+<p>This code works by first initalizing the GPO module, fixed-interval timer, and interrupts. The fixed-interval timer is setup to fire an interrupt every millisecond which will call our interrupt handler, <b>timerTick</b>. Each time <b>timerTick</b> is called, it increments a global variable <b>ct</b>. The <b>delay</b> function uses <b>ct</b> to delay for specified number of milliseconds.</p>
+<p>It is worth looking at the other templates when you create a project to get an idea of some other functions you can use.</p>
+<p>Find the hammer icon on the top tool bar to build the project and generate an <b>.elf</b> file. This is the file that tells ISE how to program the processor.</p>
+<h3>Adding the .elf file to your project</h3>
+<p>There is one last command to run to finish the project setup.</p>
+<p>Back in ISE, go to the <b>Tcl Console</b> again and enter the following command.</p>
+<pre class="brush:bash">microblaze_mcs_data2mem /path/to/project/LED_Controller/Debug/LED_Controller.elf</pre>
+<p>Note that you will have to replace <b>/path/to/project</b> with your actual path.</p>
+<p>It should output something similar to the following.</p>
+<pre class="brush:bash">microblaze_mcs_data2mem: Found 1 MicroBlaze MCS core.
+microblaze_mcs_data2mem: Using "LED_Controller.elf" for microblaze_mcs
+microblaze_mcs_data2mem: Added "-bd" options to bitgen command line.
+microblaze_mcs_data2mem: Running "data2mem" to create simulation files.
+microblaze_mcs_data2mem: Bitstream does not exist. Not running "data2mem" to update...
+microblaze_mcs_data2mem: Done.</pre>
+<p>You can now double click <b>Generate Programming File</b> to generate a <b>.bin</b> file that you can load onto your Mojo.</p>
+<p>If all went well you should now see the LEDs counting the seconds.</p>
+<h3>Editing the code</h3>
+<p>If you want to edit the code in <b>XPS</b> all you have to do after building the project is re-run the <b>Generate Programming File</b> stage in ISE to update the <b>.bin</b> file. You don't need to re-run <b>Synthesize</b> nor <b>Implement Design</b>.</p>

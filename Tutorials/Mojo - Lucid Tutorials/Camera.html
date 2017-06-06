@@ -1,0 +1,545 @@
+<p>In this tutorial we will go over how to use the <a href="/products/camera-shield.html" target="_blank">Camera Shield</a> and <a href="/products/sdram-shield.html" target="_blank">SDRAM Shield</a> to capture images, but first, let me take a selfie!</p>
+<p><img src="{{media url="wysiwyg/lucid/robotselfie.jpg"}}" alt="FPGA Selfie" /></p>
+<h2>Take a Picture</h2>
+<p>This tutorial will run a bit backwards from most of the other tutorials. First, we will use the example project to take a picture, then go through and understand it.</p>
+<p>Before we continue, make sure the firmware on your Mojo is up-to-date. Some USB bugs were fixed that may cause issues when trying to capture an image. To flash the latest firmware, in the Mojo IDE click <b>Tools->Flash Firmware...</b></p>
+<p>With that out of the way, create a new project based on the <i>Image Capture</i> example.</p>
+<p>Build the project and load it onto your Mojo.</p>
+<p>Now make sure your setup goes Mojo->SDRAM Shield->Camera Shield->OV2640. It's important that the SDRAM Shield be the first board in the stack. Also, you have to be using the OV2640 camera module for the design to work.</p>
+<p>With the stack setup and the design loaded, you should see the right LED on the Mojo blinking 7.5 times per second. The LED toggles each time a picture is taken (15 frames per second).</p>
+<p>In the Mojo IDE, go to <b>Tools->Image Capture...</b>.</p>
+<p><img src="{{media url="wysiwyg/lucid/imgcapture.png"}}" alt="Image Capture" /></p>
+<p>Leave everything as the defaults and with your Mojo plugged in, click <i>Capture</i>.</p>
+<p>You should now see the image start to load. It takes some time for it to come through so be patient.</p>
+<p>Once the image is loaded, you can save it as a .png by clicking <i>Save Image</i>.</p>
+<h2>What's Going On</h2>
+<p>It's time to dig into the design to understand what's going on. It's always a good idea to start at the top level and work down, so open up <i>mojo_top.luc</i>.</p>
+<pre class="brush:lucid;class-name:scroll">
+module mojo_top (
+    input clk,                    // 50MHz clock
+    input rst_n,                  // reset button (active low)
+    output led [8],               // 8 user controllable LEDs
+    input cclk,                   // configuration clock, AVR ready when high
+    output spi_miso,              // AVR SPI MISO
+    input spi_ss,                 // AVR SPI Slave Select
+    input spi_mosi,               // AVR SPI MOSI
+    input spi_sck,                // AVR SPI Clock
+    output spi_channel [4],       // AVR general purpose pins (used by default to select ADC channel)
+    input avr_tx,                 // AVR TX (FPGA RX)
+    output avr_rx,                // AVR RX (FPGA TX)
+    input avr_rx_busy,            // AVR RX buffer full
+    output&lt;Sdram.out&gt; sdramOut,   // SDRAM outputs
+    inout&lt;Sdram.inOut&gt; sdramInOut,// SDRAM inouts
+    output camera_scl,            // camera sccb clock
+    inout camera_sda,             // camera sccb data
+    output camera_xclk,           // camera main clock
+    input camera_pclk,            // camera pixel clock
+    input camera_href,            // camera href signal
+    input camera_vsync,           // camera vsync signal
+    input camera_data [8],        // camera pixel data
+    output camera_rst,            // camera reset (active low)
+    output camera_pwdn            // camera power down (active high)
+  ) {
+
+  sig rst;  // reset signal
+  sig fclk; // 100MHz clock
+
+  // boost clock to 100MHz
+  clk_wiz clk_wiz;
+  always {
+    clk_wiz.CLK_IN = clk;   // 50MHz in
+    fclk = clk_wiz.CLK_OUT; // 100MHz out (it's like magic!)
+  }
+
+  .clk(fclk) {
+    // The reset conditioner is used to synchronize the reset signal to the FPGA
+    // clock. This ensures the entire FPGA comes out of reset at the same time.
+    reset_conditioner reset_cond;
+
+    .rst(rst) {
+      // inouts need to be connected at instantiation and directly to an inout of the module
+      sdram sdram (.sdramInOut(sdramInOut));
+
+      // interface to the camera (OV2640)
+      ov2640 cam (#CLK_FREQ(100000000), .sda(camera_sda));
+
+      // toggle to show frame captures
+      dff frame_toggle;
+
+      // interface to the AVR (and PC indirectly)
+      avr_interface avr (#CLK_FREQ(100000000));
+
+      // serial port to register interface
+      reg_interface reg_int (#CLK_FREQ(100000000));
+
+      // memory arbiter to connect multiple devices to SDRAM
+      memory_arbiter mem_arb (#DEVICES(2));
+
+      // module to capture an image and save it to SDRAM
+      img_capture img_capture;
+    }
+  }
+
+  // adapter to give read-only access to the SDRAM over the USB port
+  ram_to_reg rtr;
+
+  always {
+    reset_cond.in = ~rst_n;                 // input raw inverted reset signal
+    rst = reset_cond.out;                   // conditioned reset
+
+    // avr interface connections
+    avr.cclk = cclk;
+    spi_miso = avr.spi_miso;
+    avr.spi_mosi = spi_mosi;
+    avr.spi_sck = spi_sck;
+    avr.spi_ss = spi_ss;
+    spi_channel = avr.spi_channel;
+
+    // serial port connections
+    avr_rx = avr.tx;
+    avr.rx = avr_tx;
+
+    avr.channel = hf; // disabled
+
+    // avr to register interface connections
+    avr.tx_block = avr_rx_busy;
+    reg_int.rx_data = avr.rx_data;
+    reg_int.new_rx_data = avr.new_rx_data;
+    reg_int.tx_busy = avr.tx_busy;
+    avr.tx_data = reg_int.tx_data;
+    avr.new_tx_data = reg_int.new_tx_data;
+
+    // default to no capture
+    img_capture.start = 0;
+
+    // if new write command to address 0
+    if (reg_int.regOut.new_cmd &amp;&amp; reg_int.regOut.write &amp;&amp; reg_int.regOut.address == 32d0)
+      img_capture.start = 1;                // start image capture
+
+    if (cam.image.end_frame)                // if frame over
+      frame_toggle.d = ~frame_toggle.q;     // toggle frame_toggle
+
+    led = 0;                                // default to off
+    led[0] = frame_toggle.q;                // toggle led[0] with each image captured
+    led[7] = ~img_capture.idle;             // show when image is being captured
+
+    // arbiter to memory connections
+    mem_arb.memIn = sdram.memOut;
+    sdram.memIn = mem_arb.memOut;
+
+    img_capture.img = cam.image;            // image feed
+
+    // image capture to memory arbiter connection
+    mem_arb.devIn[0] = img_capture.memOut;
+    img_capture.memIn = mem_arb.devOut[0];
+
+    // register interface to register adapter connections
+    rtr.regIn = reg_int.regOut;
+    reg_int.regIn = rtr.regOut;
+
+    // register adapter to memory connections
+    rtr.memIn = mem_arb.devOut[1];
+    mem_arb.devIn[1] = rtr.memOut;    
+
+    sdramOut = sdram.sdramOut;              // connect controller to SDRAM
+
+    // camera connection
+    cam.cam_clk = clk_wiz.CAM_CLK;          // 24MHz
+    cam.data = camera_data;
+    camera_scl = cam.scl;
+    camera_xclk = cam.xclk;
+    cam.pclk = camera_pclk;
+    cam.href = camera_href;
+    cam.vsync = camera_vsync;
+    camera_rst = cam.rst_cm;
+    camera_pwdn = cam.pwdn;
+  }
+}
+</pre>
+<p>There's a lot going on, so I drew a block diagram to help you out.</p>
+<p><img src="{{media url="wysiwyg/lucid/imagecapture.png"}}" alt="Image Capture Block Diagram" style="width:100%" /></p>
+<p>The <i>ov2640.luc</i> component deals with initializing the camera and reading in the pixel data. Open up this file and take a look.</p>
+<pre class="brush:lucid;class-name:scroll:first-line:32">
+global Camera {
+  // structure for storing the image data
+  struct image_data {
+    end_frame,        // end of frame reached (active high)
+    end_line,         // end of line reached (active high)
+    new_pixel,        // new pixel (active high)
+    pixel [16]        // pixel data (valid when new_pixel = 1)
+  }
+}
+
+module ov2640 #(
+    CLK_FREQ = 50000000 : CLK_FREQ &gt; $pow(2,18) // clock frequency
+  )(
+    input clk,        // main clock, must be CLK_FREQ
+    input cam_clk,    // camera clock, typically 24MHz
+    input rst,        // reset
+
+    // SCCB Interface
+    output scl,       // clock
+    inout sda,        // data
+
+    // Main camera interface
+    output xclk,      // clock output to camera
+    input pclk,       // pixel clock from camera
+    input href,       // href flag
+    input vsync,      // vsync flag
+    input data [8],   // pixel data
+    output rst_cm,    // reset camera (active low)
+    output pwdn,      // power down camera (active high)
+
+    // FPGA interface
+    output&lt;Camera.image_data&gt; image // image data
+  ) {
+
+  .clk(clk) {
+    .rst(rst) {
+      fsm state = {WAIT_RESET, RESET_CAMERA, WAIT_SETUP, PROG_CAMERA, DONE};        // main fsm
+      dff rom_addr [$clog2(OV2640_config.ENTRIES)];                                 // ROM address
+      dff cam_delay [$clog2(CLK_FREQ)-9];                                           // delay counter
+      sccb sccb (#CLK_DIV_SIZE($clog2(CLK_FREQ)-17), #WRITE_ADDR(8h60), .sda(sda)); // sccb interface
+    }
+    dff&lt;Camera.image_data&gt; img;  // output buffer
+    dff href_old, vsync_old;     // vsync/href edge detectors
+    dff byte_ct;                 // pixel byte counter
+  }
+
+  ov2640_config reg_rom;         // configuration ROM
+
+  xil_ODDR2 oddr (#DDR_ALIGNMENT("NONE"), #INIT(0), #SRTYPE("SYNC")); // ODDR to output cam_clk to xclk
+  always {
+    oddr.C0 = cam_clk;
+    oddr.C1 = ~cam_clk;
+    oddr.CE = 1;
+    oddr.D0 = 1;
+    oddr.D1 = 0;
+    oddr.R = 0;
+    oddr.S = 0;
+    xclk = oddr.Q;
+    rst_cm = 1; // active low
+    pwdn = 0;   // active high
+  }
+
+  // subsignals from fifo buffer
+  sig sync_href, sync_vsync, sync_data[8];
+
+  // reset conditioner for pclk clock domain
+  reset_conditioner wrst_cond (.clk(pclk), .in(rst));
+
+  // asyncronous fifo for crossing clock domains (pclk to clk)
+  async_fifo fifo (#SIZE(10), #DEPTH(8), .wclk(pclk), .rclk(clk), .wrst(wrst_cond.out), .rrst(rst));
+
+  always {
+    // defaults
+    cam_delay.d = 0;
+    reg_rom.addr = rom_addr.q;
+    sccb.addr = reg_rom.reg_addr;
+    sccb.value = reg_rom.value;
+    sccb.write = 0;
+    scl = sccb.scl;
+
+
+    case (state.q) {
+      state.WAIT_RESET:
+        cam_delay.d = cam_delay.q + 1;                  // wait power on
+        if (&amp;cam_delay.q)                               // if timer elapsed
+          state.d = state.RESET_CAMERA;                 // switch states
+      state.RESET_CAMERA:
+        if (!sccb.busy) {                               // if not busy
+          if (rom_addr.q != 2) {                        // if not second command
+            rom_addr.d = rom_addr.q + 1;                // increment command address
+            sccb.write = 1;                             // write command
+          } else {
+            state.d = state.WAIT_SETUP;                 // reset command sent, need to wait for it
+          }
+        }
+      state.WAIT_SETUP:
+        cam_delay.d = cam_delay.q + 1;                  // wait for camera to come back up
+        if (&amp;cam_delay.q)
+          state.d = state.PROG_CAMERA;                  // start configuring the registers
+      state.PROG_CAMERA:
+        if (!sccb.busy) {                               // if sccb bus isn't busy
+          if (rom_addr.q != OV2640_config.ENTRIES) {    // if there are more registers to write
+            rom_addr.d = rom_addr.q + 1;                // increment address
+            sccb.write = 1;                             // write the register
+          } else {                                      // otherwise...
+            state.d = state.DONE;                       // configuration is done
+          }
+        }
+      state.DONE:
+        state.d = state.DONE;                           // do nothing but stay here
+      default:
+        state.d = state.WAIT_RESET;                     // shouldn't reach here
+    }
+
+    // defaults
+    fifo.wput = 1;                                      // always put data into the fifo
+    fifo.rget = 1;                                      // always get data from the fifo
+    fifo.din = c{href, vsync, data};                    // connect camera data into fifo
+    sync_href = fifo.dout[9];                           // href out of the fifo
+    sync_vsync = fifo.dout[8];                          // vsync out of the fifo
+    sync_data = fifo.dout[7:0];                         // pixel data out of the fifo
+
+    image = img.q;                                      // output img.q
+
+    // defaults
+    img.d.end_frame = 0;
+    img.d.end_line = 0;
+    img.d.new_pixel = 0;
+
+    // if new fifo data and camera is configured
+    if (!fifo.empty &amp;&amp; state.q == state.DONE) {
+      href_old.d = sync_href;                           // save href
+      vsync_old.d = sync_vsync;                         // save vsync
+
+      if (vsync_old.q &amp;&amp; !sync_vsync)                   // if vsync fell
+        img.d.end_frame = 1;                            // signal end of frame
+
+      if (href_old.q &amp;&amp; !sync_href)                     // if href fell
+        img.d.end_line = 1;                             // signal end of line
+
+      if (!sync_href || !sync_vsync)                    // if invalid
+        byte_ct.d = 0;                                  // reset byte_ct
+
+      if (sync_href &amp;&amp; sync_vsync) {                    // if valid
+        img.d.pixel = c{img.q.pixel[7:0], sync_data};   // shift in pixel data
+        byte_ct.d = ~byte_ct.q;                         // flip byte counter
+        if (byte_ct.q)                                  // if both bytes read
+          img.d.new_pixel = 1;                          // flag we have a new pixel
+      }
+    }
+  }
+}
+</pre>
+<p>The OV2640 camera (with the configurations in the IDE) takes a 24MHz clock and uses an internal PLL to boost it to 36MHz. This clock is used to output the pixel data. The problem is we need a way to capture the pixel data reliably without violating any timing constraints. We could just use this clock for the entire design, but the SDRAM controller is designed to work at 100MHz and if you ever want to do some more complicated processing the extra speed may be nice.</p>
+<p>To get the pixel data from the 36MHz clock domain to our 100MHz domain, we can use an <i>asynchronous FIFO</i>. A FIFO (or <b>F</b>irst <b>I</b>n <b>F</b>irst <b>O</b>ut) buffer is a type of memory structure that allows you to write/read data to/from it. Unlike a chunk of RAM, you don't specify addresses, but rather just that you'd like to read or write. The order that you write data dictates the order that you read it. In other words, the order is preserved. What's special about an <i>asynchronous FIFO</i>, is that the writing and reading operations can happen from two different clock domains.</p>
+<p>We can write all the pixel data to the FIFO with the 36MHz clock, then read it back out with the 100MHz clock. The only restrictions when using a FIFO is that your average read speed needs to be equal to or faster than the write speed so you don't fill up the FIFO and drop data. You also need to size the FIFO so that it can handle the largest burst size you need to absorb.</p>
+<p>In our case, we are reading at 100MHz and writing at 36Mhz, so we will have no problems keeping up with the data flow.</p>
+<p>There are four signals the camera uses to send image data to us. <i>pclk</i> is the pixel clock. This is the 36MHz clock that the rest of the signals are aligned to. <i>vsync</i> is the vertical sync signal. It tells us when a frame starts and stops. <i>href</i> is horizontal reference. It tells us when a row starts and stops. <i>data</i> is the eight data lines that convey the actual color information.</p>
+<p>When <i>href</i> and <i>vsync</i> are both high, each rising edge of <i>pclk</i> signals a new valid byte of data on <i>data</i>. The current configuration of the camera has it outputting 16 bits per pixel, so a new pixel is received every two rising edges of <i>pclk</i>.</p>
+<p>The <i>ov2640</i> module's job is to output the pixel data and flags for the end of row/frame. Each time <i>vsync</i> falls, the end of a frame is signaled. Each time <i>href</i> falls, the end of a row if signaled. Ever other valid <i>pclk</i> cycle, the two bytes are packed together into a single 16 bit pixel that is output.</p>
+<p>The format of each pixel is 565 RGB. That means bits 15-11 are red, 10-5 are green, and 4-0 are blue. You can convert these values to 24 bit color by appending the MSBs of each color so that it's 8 bits wide. For example, if red is 5 bits wide, you can do <i>c{red[4:0],red[4:2]}</i> to get the 8 bit equivalent. Note that you aren't actually upscaling the color, but just converting to a different color space.</p>
+<p>As we mentioned before, these signals can't be sampled directly in the 100MHz clock domain so the asynchronous FIFO is setup so that each rising edge of <i>pclk</i> writes the <i>href</i>, <i>vsync</i>, and <i>data</i> signals to it. In the 100MHz clock domain, we simply wait until the FIFO has data to read and treat that data as the three signals to generate the pixel data and flags.</p>
+<h3>Configuration</h3>
+<p>When the camera is first powered up, it isn't taking any pictures. It needs to go through a fairly complicated configuration process before it'll start sending useful data. Unfortunately, camera companies seem to feel the need to keep all the configuration data locked up under NDAs. Fortunately, I was able to find a <a href="https://stuff.mit.edu/afs/sipb/contrib/linux/drivers/media/i2c/soc_camera/ov2640.c" target="_blank">Linux driver</a> for this camera that contained all the configuration data needed to get it to spit out images. This data is packed into the <i>ov2640_uxga_config.luc</i> module.</p>
+<p>This driver contained different configuration settings for various frame sizes from 176x144 to 1600x1200. The <i>ov2640_uxga_config.luc</i> module contains data for 1600x1200 resolution images. If you want to change the resolution, you can remove this component and add one of the other configuration ROMs under <i>Image</i> in the components library. Note that you can only have one of these modules in your project at any given time as they all use the same module name, <i>ov2640_config</i>.</p>
+<p>This camera is capable of shooting up to 60fps at 408x304, but unfortunately, these configurations are always 15fps. I haven't found any valid configurations for properly setting it up to shoot at higher frame rates, but if someone does find one, <a href="mailto:support@embeddedmicro.com">let us know</a>.</p>
+<p>The configuration data is written using a protocol called <i>SCCB</i>, or <b>S</b>erial <b>C</b>amera <b>C</b>ontrol <b>B</b>us. SCCB is very similar to I2C, with only very minor differences.</p>
+<h2>Image Capture</h2>
+<p>Now that we have the camera setup and spitting out useful pixel information, we need to do something with it.</p>
+<p>In this tutorial, we are going to simply save the pixel data into SDRAM so that it can be used later. Open up <i>img_capture.luc</i>./</p>
+<pre class="brush:lucid;class-name:scroll;first-line:33">
+module img_capture (
+    input clk,                       // clock
+    input rst,                       // reset
+
+    input start,                     // start flag (1 = start)
+    output idle,                     // idle flag (1 = idle)
+
+    input&lt;Camera.image_data&gt; img,    // image data stream
+
+    output&lt;Memory.master&gt; memOut,    // memory interface
+    input&lt;Memory.slave&gt; memIn
+  ) {
+
+  .clk(clk) {
+    .rst(rst) {
+      fsm state = {IDLE, WAIT_FRAME, WAIT_PIXEL_1, WAIT_PIXEL_2, WRITE_SDRAM};
+
+      // RAM may not be ready for each pixel so we need to buffer the writes
+      mem_write_buffer buffer (#DEPTH(8));
+    }
+    dff addr[$clog2(OV2640_config.IMG_SIZE/2)];       // RAM address to write to
+    dff data[32];                                     // data to write
+  }
+
+  always {
+    buffer.memIn = memIn;                             // connect buffer to RAM
+    memOut = buffer.memOut;
+
+    buffer.devIn.valid = 0;                           // not valid
+    buffer.devIn.write = 1;                           // always a write
+    buffer.devIn.data = data.q;                       // connect data
+    buffer.devIn.addr = addr.q;                       // connect address
+    idle = state.q == state.IDLE;                     // idle when we are IDLE
+
+    case (state.q) {
+      state.IDLE:
+        addr.d = 0;                                   // reset address
+        if (start)                                    // if start
+          state.d = state.WAIT_FRAME;                 // wait for the next frame
+
+      state.WAIT_FRAME:
+        if (img.end_frame)                            // if end of current frame
+          state.d = state.WAIT_PIXEL_1;               // start capturing pixels
+
+      state.WAIT_PIXEL_1:
+        if (img.new_pixel) {                          // if new pixel     
+          data.d[15:0] = img.pixel;                   // write to lower half
+          state.d = state.WAIT_PIXEL_2;               // wait for next pixel
+        }
+
+      state.WAIT_PIXEL_2:
+        if (img.new_pixel) {                          // if new pixel
+          data.d[31:16] = img.pixel;                  // write to upper half
+          state.d = state.WRITE_SDRAM;                // write data to SDRAM
+        }
+
+      state.WRITE_SDRAM:
+        if (!buffer.devOut.busy) {                    // if buffer isn't full (busy)
+          buffer.devIn.valid = 1;                     // new command
+          addr.d = addr.q + 1;                        // increment the address
+          state.d = state.WAIT_PIXEL_1;               // wait for next pixel
+
+          if (addr.q == (OV2640_config.IMG_SIZE/2)-1) // if we read in all the pixels
+            state.d = state.IDLE;                     // return to idle
+        }
+
+      default:
+        state.d = state.IDLE;                         // shouldn't reach here
+    }
+  }
+}
+</pre>
+<p>This module waits until <i>start</i> signals to capture a frame. It then waits for the current frame to end (signaling a fresh frame is about to start). Once the frame starts, it waits for the first pixel, save it in a dff, then when the next pixel is received it write them both to RAM. The reason it needs to wait for two pixels is because each pixel is 16 bits of data and the SDRAM interface uses 32 bits of data per address. This means we can pack two pixels into each address.</p>
+<p>This continues until we have written an entire frames worth of pixels to RAM. We know how many pixels are in a frame from the <i>OV2640_config.IMG_SIZE</i> constant. This constant is defined in the configuration ROM, so if you switch out the ROM, this constant will change everywhere.</p>
+<p>There is one minor issue that we didn't consider yet. We get a new pixel at a rate of 36MHz/2 = 18MHz. This means we need to write to RAM at a rate of 18MHz/2 = 9MHz. A write takes 5 clock cycles @ 100MHz (assuming the row is already open) so we should be able to write at 20MHz. However, SDRAM requires refresh cycles to keep the contents intact. This means that periodically there will be fairly large delays. A refresh operation takes 11 cycles. That means, in the worst case, we have to wait 16 cycles between writes. 16 cycles is equivalent to 6.25MHz and since we need to write on average at 9MHz, we have a problem. The solution, another FIFO.</p>
+<p>The key is that we need to average a rate 9MHz. The average write performance is easily about 9MHz, we just need to smooth out the delays caused from refresh cycles and opening/closing rows. There is a component, <i>mem_write_buffer</i> that has the same interface as the SDRAM controller that will absorb our writes and spew them out when the SDRAM controller isn't busy.</p>
+<p>This buffer makes sure that we don't lose any pixels and everything is written to RAM.</p>
+<p>Just to recap, we now have the camera configured and spitting out pixel data. When we receive a signal to capture a frame, we then save the pixel data into SDRAM starting at address 0 and going to address (OV2640_config.IMG_SIZE/2)-1.</p>
+<h2>Retrieving the Image</h2>
+<p>Now that we have a way to capture an image in SDRAM, we need a way to trigger the capture and read the data back.</p>
+<p>This is where the {{widget type="cms/widget_page_link" anchor_text="Register Interface" template="cms/widget/link/link_inline.phtml" page_id="73"}} comes in handy. If you haven't read that tutorial yet, make sure you do.</p>
+<p>Just as a recap, the register interface allows us to easily issue read and write commands over the USB port on the Mojo to specific addresses. We can then use these addresses for whatever we want.</p>
+<p>We can use a write to address 0 to trigger the capture of an image. Check out these lines from <i>mojo_top</i>.</p>
+<pre class="brush:lucid;first-line:95">
+    // default to no capture
+    img_capture.start = 0;
+
+    // if new write command to address 0
+    if (reg_int.regOut.new_cmd &amp;&amp; reg_int.regOut.write &amp;&amp; reg_int.regOut.address == 32d0)
+      img_capture.start = 1;                // start image capture
+</pre>
+<p>When a write to address 0 is detected, we set <i>img_capture.start</i> to 1 to capture an image.</p>
+<p>We now just need a way to give the register interface access to the SDRAM.</p>
+<p>This is where <i>ram_to_reg</i> takes over.</p>
+<pre class="brush:lucid;first-line:33">
+module ram_to_reg (
+    // register interface
+    input&lt;Register.master&gt; regIn,
+    output&lt;Register.slave&gt; regOut,
+
+    // memory interface
+    output&lt;Memory.master&gt; memOut,
+    input&lt;Memory.slave&gt; memIn
+  ) {
+
+  always {
+    memOut.write = regIn.write;                  // connect write flags
+    memOut.data = regIn.data;                    // connect data for writes
+    memOut.addr = regIn.address[22:0];           // memory only uses 23 bit addresses
+    memOut.valid = regIn.new_cmd &amp; ~regIn.write; // valid only for new read commands
+    regOut.data = memIn.data;                    // connect data from reads
+    regOut.drdy = memIn.valid;                   // connect read valid flag
+  }
+}
+</pre>
+<p>This modules takes all read requests from the register interface and forwards them the SDRAM controller. The results from the SDRAM controller and sent back to the register interface. Note that writes could easily be forwarded too, but we are using writes to address 0 to signal an image capture and we don't want to corrupt the image data.</p>
+<p>Notice how similar these interfaces are. We barely have to do anything to forward the requests.</p>
+<h2>Memory Arbiter</h2>
+<p>We now have a way to take an image, save it, and retrieve the data. However, there's one last issue we need to address. We now have the <i>img_capture</i> and <i>ram_to_reg</i> modules needing to connect to the SDRAM controller.</p>
+<p>We need a way to give both modules access to the SDRAM. Good thing we have the <i>memory_arbiter</i> component. This component allows you to connect an arbitrary number of modules implementing the master memory interface (things that want to write/read from RAM) to a single slave (the SDRAM controller).</p>
+<pre class="brush:lucid;first-line:34;class-name:scroll">
+module memory_arbiter #(
+    DEVICES = 2 : DEVICES &gt; 0                               // number of devices to arbitrate
+  )(
+    input clk,                                              // clock
+    input rst,                                              // reset
+    input&lt;Memory.slave&gt; memIn,                              // memory inputs
+    output&lt;Memory.master&gt; memOut,                           // memory outputs
+    input&lt;Memory.master&gt; devIn[DEVICES],                    // devices inputs
+    output&lt;Memory.slave&gt; devOut[DEVICES]                    // devices outputs
+  ) {
+
+  // simple structure to hold pending commands
+  struct command {
+    valid,                                                  // valid flag (1 = valid)
+    write,                                                  // write/read flag (1 = write)
+    addr[23],                                               // address to read/write
+    data[32]                                                // data for writes
+  }
+
+  .clk(clk), .rst(rst) {
+    dff&lt;command&gt; commands[DEVICES];                         // buffer for pending commands
+    dff device[$clog2(DEVICES)];                            // device waiting for a read
+    fsm state = {IDLE, WAIT_READ};                          // current state
+    dff activeDev[$clog2(DEVICES)];                         // highest priority device with pending command
+  }
+
+  var i;
+
+  always {
+    // defaults
+    memOut.data = 32bx;
+    memOut.valid = 0;
+    memOut.addr = 23bx;
+    memOut.write = 1bx;
+
+    for (i = 0; i &lt; DEVICES; i++) {
+      devOut[i].busy = commands.q[i].valid;                 // if the command isn't valid we can take a new one
+      devOut[i].data = 32bx;                                // don't care
+      devOut[i].valid = 0;                                  // not valid
+
+      // if not busy and new command issued
+      if (!commands.q[i].valid &amp;&amp; devIn[i].valid) {
+        commands.d[i].valid = 1;                            // command pending
+        commands.d[i].write = devIn[i].write;               // save the command type
+        commands.d[i].addr = devIn[i].addr;                 // save the address
+        commands.d[i].data = devIn[i].data;                 // save the data
+      }
+
+      // set activeDev to the lowest index with a pending command
+      if (commands.q[DEVICES-1-i].valid)
+        activeDev.d = DEVICES-1-i;
+    }
+
+    case (state.q) {
+      state.IDLE:
+
+        // if the memory bus isn't busy and we have a pending command
+        if (!memIn.busy &amp;&amp; commands.q[activeDev.q].valid) {
+          memOut.data = commands.q[activeDev.q].data;       // command data
+          memOut.addr = commands.q[activeDev.q].addr;       // command address
+          memOut.write = commands.q[activeDev.q].write;     // command type (r/w)
+          memOut.valid = 1;                                 // new command
+          commands.d[activeDev.q].valid = 0;                // command has been processed
+          if (!commands.q[activeDev.q].write) {             // if it is a read
+            device.d = activeDev.q;                         // save active device
+            state.d = state.WAIT_READ;                      // wait for the result
+          }
+        }
+
+      state.WAIT_READ:
+        if (memIn.valid) {                                  // if we have the result
+          devOut[device.q].data = memIn.data;               // send it to the waiting device
+          devOut[device.q].valid = 1;
+          state.d = state.IDLE;                             // go back to IDLE
+        }
+
+      default:
+        state.d = state.IDLE;
+    }
+  }
+}
+</pre>
+<p>The way it works is it takes requests from any any attached master module. These requests are then issued to the slave in priority order. That means that the first device always has the highest priority, followed by the next, etc.</p>
+<p>Priority order is nice because it is simple to implement as it has no internal state (you don't care who was just served). However, it isn't a fair algorithm. That means if the module with the highest priority saturates the memory bus, lower priority modules will never get their requests served.</p>
+<p>This isn't typically a problem as long as you order the masters carefully.</p>
+<p>In our case, it actually doesn't really matter if the <i>img_capture</i> or <i>ram_to_reg</i> module has higher priority as they won't be operating at the same time (the image is captured, then it is read back). Anyways, the <i>img_capture</i> module was given higher priority as it attaches to the 0th position and <i>ram_to_reg</i> attaches to the 1st position.</p>
+<h2>Conclusion</h2>
+<p>If we go back and look at the block diagram from the beginning, all the connections should now make sense.</p>
+<p><img src="{{media url="wysiwyg/lucid/imagecapture.png"}}" alt="Image Capture Block Diagram" style="width:100%" /></p>
+<p>The SCCB and Config ROM modules are used to configure the camera. The camera then spits out image data that the OV2640 modules brings over to the 100MHz clock domain and packs into pixel chunks. The image data is then fed into the Image Capture module that, when told to, saves an entire frame into the SDRAM. Writes are buffered in the RAM Write Buffer so we don't drop any pixels when the SDRAM is busy refreshing or opening a new row. The Register Interface module allows us to issue reads and writes to various addresses. If a write to address 0 is issued, we issue a start command to the Image Capture module. All reads are forwarded to the Reg to RAM module which sends them to the SDRAM controller. The Memory Arbiter allows us to give both the Image Capture and Reg to RAM modules access to the SDRAM.</p>
+<p>The Image Capture Tool in the Mojo IDE issues a write to address 0 when you click <i>Capture</i>. It then waits a small amount of time for the image to be captured and then reads all the addresses needed for an entire frame. As the image data is read in, it builds an image out of it.</p>

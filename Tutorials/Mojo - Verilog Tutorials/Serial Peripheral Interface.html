@@ -1,0 +1,194 @@
+<p><b>S</b>erial <b>P</b>eripheral <b>I</b>nterface, or <b>SPI</b>, is a very common communication protocol used for two-way communication between two devices. A standard SPI bus consists of 4 signals, <b>M</b>aster <b>O</b>ut <b>S</b>lave <b>I</b>n (<b>MOSI</b>), <b>M</b>aster <b>I</b>n <b>S</b>lave <b>O</b>ut (<b>MISO</b>), the clock (<b>SCK</b>), and <b>S</b>lave <b>S</b>elect (<b>SS</b>). Unlike an {{widget type="cms/widget_page_link" anchor_text="asynchronous serial interface" template="cms/widget/link/link_inline.phtml" page_id="37"}}, SPI is not symmetric. An SPI bus has one <b>master</b> and one or more <b>slaves</b>. The master can talk to any slave on the bus, but each slave can only talk to the master. Each slave on the bus must have it's own unique slave select signal. The master uses the slave select signals to <em>select</em> which <em>slave</em> it will be talking to. Since SPI also includes a clock signal, both devices don't need to agree on a data rate before hand. The only requirement is that the clock is lower than the maximum frequency for all devices involved. </p>
+<h3>Example SPI Transfer</h3>
+<p>When the master of the SPI bus wants to initiate a transfer, it must first pull the <b>SS</b> signal low for the slave it wants to communicate with. Once the <b>SS</b> signal is low, that slave will be <em>listening<b> </b></em>on the bus. The master is then free to start sending data. </p>
+<p>There are 4 different SPI bus standards that all have to do with the <b>SCK</b> signal. The 4 modes are broken down into two parameters, <b>CPOL</b> and <b>CPHA</b>. <b>CPOL</b> stands for <b>C</b>lock <b>POL</b>arity and designates the default value (high/low) of the <b>SCK</b> signal when the bus is idle.  <b>CPHA</b> stands for <b>C</b>lock <b>PHA</b>se and determines which edge of the clock data is sampled (rising/falling). The data sheet for any device will specify these parameters so you can adjust accordingly. The most common settings are <b>CPOL</b>=0 (idle low) and <b>CPHA</b>=0 (sample rising edge).</p>
+<p>Here is an example transfer with <b>CPOL</b>=0 and <b>CPHA</b>=0.</p>
+<p><img src="{{media url="wysiwyg//SPI/spi.png"}}" alt="Example SPI Transfer" width="661" height="419" /></p>
+<p>The bits in a SPI transmission are sent LSB first.</p>
+<p>Any SPI transmission is controlled solely by the master. The master generates the clock and controls the slave select signal(s). This means that the slave has no way of sending data to the master on its own! </p>
+<p>Each SPI transfer is <b>full-duplex</b>, meaning that data is sent from the master to the slave and from the slave to the master at the same time. There is no way for a slave to opt-out of sending data when the master makes a transfer, however, devices will send dummy bytes (usually all 1's or all 0's) when communication should be one way. If the master is reading data in for a slave, the slave will know to ignore the data being sent by the master. </p>
+<p>Devices that use SPI typically will send/receive multiple bytes each time the <b>SS</b> signal goes low. This way the <b>SS</b> signal acts as a way to frame a transmission.<b> </b>For example, if you had a flash memory that had an SPI bus and you want to read some data, the <b>SS</b> signal would go low, the master would send the command to read memory at a certain address, and as long as the master kept <b>SS</b> low and toggling <b>SCK</b> the flash memory would keep sending out data. Once <b>SS</b> returned high the flash memory knows to end the read command.</p>
+<p>Since the <b>MISO</b> signal can be connected to multiple devices, each device will only drive the line when its <b>SS</b> signal is low. This is shown by the grey area.</p>
+<h3>SPI Slave</h3>
+<p>In the <a href="https://github.com/embmicro/mojo-base-project/archive/master.zip" target="_blank">Mojo Base Project</a>, the file <b>spi_slave.v</b> contains the SPI module used to interface with the AVR. The AVR, in this case, is the master and the FPGA is the slave. The reason the AVR is the master is because the SPI bus is used to transfer data from the analog pins. Since the FPGA has no way of knowing when the data would be available, the FPGA would have to keep asking the AVR if it had any data. By making the AVR the master, it allows it to send the data right when it's ready.</p>
+<pre class="brush:verilog">module spi_slave(
+    input clk,
+    input rst,
+    input ss,
+    input mosi,
+    output miso,
+    input sck,
+    output done,
+    input [7:0] din,
+    output [7:0] dout
+  );
+  
+  reg mosi_d, mosi_q;
+  reg ss_d, ss_q;
+  reg sck_d, sck_q;
+  reg sck_old_d, sck_old_q;
+  reg [7:0] data_d, data_q;
+  reg done_d, done_q;
+  reg [2:0] bit_ct_d, bit_ct_q;
+  reg [7:0] dout_d, dout_q;
+  reg miso_d, miso_q;
+  
+  assign miso = miso_q;
+  assign done = done_q;
+  assign dout = dout_q;
+  
+  always @(*) begin
+    ss_d = ss;
+    mosi_d = mosi;
+    miso_d = miso_q;
+    sck_d = sck;
+    sck_old_d = sck_q;
+    data_d = data_q;
+    done_d = 1'b0;
+    bit_ct_d = bit_ct_q;
+    dout_d = dout_q;
+    
+    if (ss_q) begin                           // if slave select is high (deselcted)
+      bit_ct_d = 3'b0;                        // reset bit counter
+      data_d = din;                           // read in data
+      miso_d = data_q[7];                     // output MSB
+    end else begin                            // else slave select is low (selected)
+      if (!sck_old_q &amp;&amp; sck_q) begin          // rising edge
+        data_d = {data_q[6:0], mosi_q};       // read data in and shift
+        bit_ct_d = bit_ct_q + 1'b1;           // increment the bit counter
+        if (bit_ct_q == 3'b111) begin         // if we are on the last bit
+          dout_d = {data_q[6:0], mosi_q};     // output the byte
+          done_d = 1'b1;                      // set transfer done flag
+          data_d = din;                       // read in new byte
+        end
+      end else if (sck_old_q &amp;&amp; !sck_q) begin // falling edge
+        miso_d = data_q[7];                   // output MSB
+      end
+    end
+  end
+  
+  always @(posedge clk) begin
+    if (rst) begin
+      done_q &lt;= 1'b0;
+      bit_ct_q &lt;= 3'b0;
+      dout_q &lt;= 8'b0;
+      miso_q &lt;= 1'b1;
+    end else begin
+      done_q &lt;= done_d;
+      bit_ct_q &lt;= bit_ct_d;
+      dout_q &lt;= dout_d;
+      miso_q &lt;= miso_d;
+    end
+    
+    sck_q &lt;= sck_d;
+    mosi_q &lt;= mosi_d;
+    ss_q &lt;= ss_d;
+    data_q &lt;= data_d;
+    sck_old_q &lt;= sck_old_d;
+    
+  end
+  
+endmodule</pre>
+<p>This is module assumes <b>CPOL </b>= 0 and <b>CPHA </b>= 0.</p>
+<p>It waits for <b>SS</b> to go low. Once <b>SS</b> is low, it starts shifting data into the <b>data_d/_q</b> register. Once eight bits have been shifted in it signals that it has new data on <b>dout</b>. On the falling edges of the clock, it shifts out the data that was provided by <b>din</b> at the beginning of the transmission. </p>
+<h3>SPI Master</h3>
+<p>Our <a href="/development-boards/clock-visualizer-shield.html">Clock/Visualizer Shield</a>, uses a <b>R</b>eal-<b>T</b>ime <b>C</b>lock (<b>RTC</b>) device that provides the Mojo with the current time. The RTC is connected to the Mojo through an SPI bus. In this case, the FPGA on the Mojo is the master and the RTC is the slave.</p>
+<pre class="brush:verilog">module spi #(parameter CLK_DIV = 2)(
+    input clk,
+    input rst,
+    input miso,
+    output mosi,
+    output sck,
+    input start,
+    input[7:0] data_in,
+    output[7:0] data_out,
+    output busy,
+    output new_data
+  );
+  
+  localparam STATE_SIZE = 2;
+  localparam IDLE = 2'd0,
+    WAIT_HALF = 2'd1,
+    TRANSFER = 2'd2;
+  
+  reg [STATE_SIZE-1:0] state_d, state_q;
+  
+  reg [7:0] data_d, data_q;
+  reg [CLK_DIV-1:0] sck_d, sck_q;
+  reg mosi_d, mosi_q;
+  reg [2:0] ctr_d, ctr_q;
+  reg new_data_d, new_data_q;
+  reg [7:0] data_out_d, data_out_q;
+  
+  assign mosi = mosi_q;
+  assign sck = (~sck_q[CLK_DIV-1]) &amp; (state_q == TRANSFER);
+  assign busy = state_q != IDLE;
+  assign data_out = data_out_q;
+  assign new_data = new_data_q;
+  
+  always @(*) begin
+    sck_d = sck_q;
+    data_d = data_q;
+    mosi_d = mosi_q;
+    ctr_d = ctr_q;
+    new_data_d = 1'b0;
+    data_out_d = data_out_q;
+    state_d = state_q;
+    
+    case (state_q)
+      IDLE: begin
+        sck_d = 4'b0;              // reset clock counter
+        ctr_d = 3'b0;              // reset bit counter
+        if (start == 1'b1) begin   // if start command
+          data_d = data_in;        // copy data to send
+          state_d = WAIT_HALF;     // change state
+        end
+      end
+      WAIT_HALF: begin
+        sck_d = sck_q + 1'b1;                  // increment clock counter
+        if (sck_q == {CLK_DIV-1{1'b1}}) begin  // if clock is half full (about to fall)
+          sck_d = 1'b0;                        // reset to 0
+          state_d = TRANSFER;                  // change state
+        end
+      end
+      TRANSFER: begin
+        sck_d = sck_q + 1'b1;                           // increment clock counter
+        if (sck_q == 4'b0000) begin                     // if clock counter is 0
+          mosi_d = data_q[7];                           // output the MSB of data
+        end else if (sck_q == {CLK_DIV-1{1'b1}}) begin  // else if it's half full (about to fall)
+          data_d = {data_q[6:0], miso};                 // read in data (shift in)
+        end else if (sck_q == {CLK_DIV{1'b1}}) begin    // else if it's full (about to rise)
+          ctr_d = ctr_q + 1'b1;                         // increment bit counter
+          if (ctr_q == 3'b111) begin                    // if we are on the last bit
+            state_d = IDLE;                             // change state
+            data_out_d = data_q;                        // output data
+            new_data_d = 1'b1;                          // signal data is valid
+          end
+        end
+      end
+    endcase
+  end
+  
+  always @(posedge clk) begin
+    if (rst) begin
+      ctr_q &lt;= 3'b0;
+      data_q &lt;= 8'b0;
+      sck_q &lt;= 4'b0;
+      mosi_q &lt;= 1'b0;
+      state_q &lt;= IDLE;
+      data_out_q &lt;= 8'b0;
+      new_data_q &lt;= 1'b0;
+    end else begin
+      ctr_q &lt;= ctr_d;
+      data_q &lt;= data_d;
+      sck_q &lt;= sck_d;
+      mosi_q &lt;= mosi_d;
+      state_q &lt;= state_d;
+      data_out_q &lt;= data_out_d;
+      new_data_q &lt;= new_data_d;
+    end
+  end
+  
+endmodule</pre>
+<p>In this case <b>CPOL</b> = 0 and <b>CPHA</b> = 1.</p>
+<p>The overall idea is the same, however, the FPGA now needs to generate the <b>SCK</b> signal. The parameter <b>CLK_DIV</b> is used to specify how much the FPGA's clock should be divided. The default value is 2, which means that the frequency of <b>SCK</b> will be 1/4th (2^2 = 4 clock cycles) of that of the FPGA. If <b>CLK_DIV</b> was set to 3, <b>SCK</b> would be 1/8th (2^3 = 8 clock cycles) the frequency of the FPGA's clock.</p>

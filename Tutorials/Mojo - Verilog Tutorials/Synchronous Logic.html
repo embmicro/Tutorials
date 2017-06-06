@@ -1,0 +1,132 @@
+<div class="video-container"><iframe src="https://www.youtube.com/embed/kOE1GXge11k" frameborder="0" width="680" height="383"></iframe></div>
+<p>Synchronous logic if a fundamental building block for just about any digital design. It allows you to create much more complex systems that accomplish something over a series of steps. It also gives you the ability to save states or other information. In this tutorial you will be introduced to the&nbsp;<strong>D flip flop</strong> and how you can use these to make an LED blink.</p>
+<h3>The Problem</h3>
+<p>In our last tutorial we simply wired a LED to a button. Whenever you pressed the button the LED would turn on. Our design had no concept of time. The goal for this project is to blink an LED. That means we have to create a circuit that can turn itself on and off automatically after a regular interval of time has passed. For this we need the flip flop.</p>
+<h3>Clocks</h3>
+<p>Before I can explain what exactly a flip flop does you need to understand what a clock is.</p>
+<p>A clock is just a signal that toggles between 0 and 1 over and over again. It looks something like this.</p>
+<p><img src="{{media url="wysiwyg//sync-logic/clock.png"}}" alt="Clock signal" /></p>
+<p>The important thing is the rate at which it toggles. The clock on the Mojo is a 50MHz clock. That means that it toggles 50 million times per second!</p>
+<p>The clock has two edges, the&nbsp;<strong>rising edge</strong> and the <strong>falling edge</strong>. I drew the rising edges with little arrows. The rising edge is usually the important one.</p>
+<h3>D Flip-Flops</h3>
+<p>This is one of the most important circuit elements you will be using. Lucky for you, it is also fairly straight forward how they work. Take a look at the symbol for the flip flop below.</p>
+<p><img src="{{media url="wysiwyg/sync-logic/dff.png"}}" alt="D flip flop" /></p>
+<p>This image shows all the signals that a flip flop could have, but in practice, the only required signals are&nbsp;<strong>D</strong>, <strong>Q</strong>, and&nbsp;<strong>clk</strong>. For now, forget about&nbsp;<strong>rst</strong> and&nbsp;<strong>en</strong>.</p>
+<p>So what exactly does this thing do? All it does is copy the signal at&nbsp;<strong>D</strong> to&nbsp;<strong>Q</strong> whenever there is a rising edge on the&nbsp;<strong>clk</strong> input. That means&nbsp;<strong>Q</strong> will keep it's value between rising edges of the clock. Since the flip flop&nbsp;<em>remembers</em> what the input was at&nbsp;<strong>D</strong>, it is actually one of the most basic memory elements.&nbsp;</p>
+<h3>Loops</h3>
+<p>Lets take a look at the following example.</p>
+<p><img src="{{media url="wysiwyg/sync-logic/notloop.png"}}" alt="Not loop" /></p>
+<p>What will this circuit do? If the input to the gate is 1, then it's output is 0. However, the output is the input so the output must be 1, but then the input is 1 so the output must be 0? If we assume that the signal can only be 0 or 1 it seems like it would toggle between 0 and 1 infinitely fast. In practice, remember that signals are actually represented by voltages, it may oscillate or it may settle to somewhere in the middle. This is of course something we don't want! Designing combinational circuits with feedback can be very tricky to make sure something like this doesn't happen and that the circuit will work how you expect it to. That is why we don't! Instead, we use a circuit like this one.</p>
+<p><img src="{{media url="wysiwyg/sync-logic/dffnot.png"}}" alt="Not loop with flip flop" /></p>
+<p>What will this circuit do? Well, for now lets just assume that&nbsp;<strong>Q</strong> is 0. That means that&nbsp;<strong>D</strong> is 1 (because it went through the not gate). On the next rising edge of the clock&nbsp;<strong>Q</strong> will copy what&nbsp;<strong>D</strong> is, so&nbsp;<strong>Q</strong> becomes 1. Once&nbsp;<strong>Q</strong> becomes 1,&nbsp;<strong>D</strong> becomes 0! You can follow the pattern to realize that every time there is a rising edge on the clock the output of the flip flop toggles.</p>
+<p>What about the initial condition though? If we just built this circuit how do we know if&nbsp;<strong>Q</strong> is 0 or 1? The truth is that we don't and in some cases it may be 1 while others it may be 0. That is where the&nbsp;<strong>rst</strong> signal comes in. This signal is used to reset the flip flop to a known state. In FPGAs this signal is generally very flexible and allows you to reset the flip flop to a 1 or 0 when the signal is high or low (your choice, not both). I personally like to use an&nbsp;<strong>active high</strong> reset. That means when the&nbsp;<strong>rst</strong> signal is 1, the flip flop is held in reset.</p>
+<p>There are cases where you don't care what the inital value of the flip flop is, in those cases you don't need to, and shouldn't, use a reset.</p>
+<p>Since the only signal left is&nbsp;<strong>en</strong>, I'll cover it now just for completeness. There are times when you want the flip flop to ignore the rising edges on the clock and to preserve the contents of&nbsp;<strong>Q</strong>. That is when you use the&nbsp;<strong>enable</strong> signal. When the&nbsp;<strong>en</strong> signal is 1, the flip flop operates normally. When it is 0 the contents of&nbsp;<strong>Q</strong> won't change on the rising edges of the clock. If you see a flip flop without an&nbsp;<strong>en</strong> signal it is just assumed that the flip flop is always enabled.</p>
+<h3>Creating the blinker module</h3>
+<p>We are going to modify the code from the previous tutorial to create the blinker, so make sure you've downloaded <a href="https://github.com/embmicro/mojo-base-project/archive/master.zip" target="_blank">the base project</a>.&nbsp;</p>
+<p>Open up the project in ISE. We now are going to add a new module which will be our blinker. On the left in the&nbsp;<strong>Hierarchy</strong>&nbsp;section right click on&nbsp;<strong>mojo_top</strong>&nbsp;and choose&nbsp;<strong>New Source...</strong>.&nbsp;</p>
+<p><img src="{{media url="wysiwyg/sync-logic/addfile.png"}}" alt="ISE New File" /></p>
+<p>Select&nbsp;<strong>Verilog Module</strong>&nbsp;and enter&nbsp;<strong>blinker.v</strong> as the name. Click&nbsp;<strong>Next</strong> then<strong>&nbsp;Next</strong> then&nbsp;<strong>Finish</strong>.</p>
+<p>The file should open in the editor. Replace the existing code with the following.</p>
+<pre class="brush: verilog">module blinker(
+    input clk,
+    input rst,
+    output blink
+  );
+  
+  reg [24:0] counter_d, counter_q;
+  
+  assign blink = counter_q[24];
+  
+  always @(counter_q) begin
+    counter_d = counter_q + 1'b1;
+  end
+  
+  always @(posedge clk) begin
+    if (rst) begin
+      counter_q &lt;= 25'b0;
+    end else begin
+      counter_q &lt;= counter_d;
+    end
+  end
+  
+endmodule</pre>
+<p>Just like the last tutorial lets break down the code to understand what is going one.</p>
+<h3>The reg</h3>
+<pre class="brush: verilog; first-line: 7">reg [24:0] counter_d, counter_q;</pre>
+<p>This is the first new piece of code. Reg stands for register, and is a bit different than a wire. Flip flops are sometimes called registers. However, a confusing thing in Verilog is that a reg does not necessarily become a flip flop and they can be used in ways similar to wires.</p>
+<p>The wire type is used simply to connect to things. A wire can only have one value, in other words it can only be connected to one thing and it will always be connected to that thing. A reg can actually drive a signal. These points are very subtle and the line between them can get blurry in some cases.</p>
+<p>The only really important thing to know is that a reg can be assigned a value in an&nbsp;<strong>always</strong> block while wires can not (they can be read though). Any time you use always blocks you will be using reg's. If you are just connecting two signals you will be using wires.</p>
+<p>Here we are declaring two 25 bit wide reg's. We are going to use these signals to create a 25 bit wide flip flop (made up of 25 1 bit flip flops). The suffixes&nbsp;<strong>_d</strong> and&nbsp;<strong>_q</strong> corresponding to the flip flop signals&nbsp;<strong>d</strong> and&nbsp;<strong>q</strong> from before. It is good practice to use this nameing convention.</p>
+<h3>Combinational always blocks</h3>
+<pre class="brush: verilog; first-line: 11">  always @(counter_q) begin
+    counter_d = counter_q + 1'b1;
+  end</pre>
+<p>This is our first always block. Always blocks can kinda be thought of as functions that run under certain conditions. Those conditions are specified in the&nbsp;<strong>sensitivity list</strong>. The sensitivity list in this case is just&nbsp;<strong>counter_q</strong>. This is because the values this always block produces will only change when&nbsp;<strong>counter_q</strong> changes.</p>
+<p>Since this is out&nbsp;<strong>combinational&nbsp;</strong>always block, we could have used&nbsp;<strong>@(*)</strong> for the sensitivity list. This says that this always block will be run whenever&nbsp;<strong>anything</strong>&nbsp;changes. The only reason not to do this is for simulations. In a simulation the always blocks are run basically as functions and limiting the sensitivity list to only the signals of interest will help reduce the time needed to run the simulation. For synthesis (the actual FPGA design) it doesn't make any difference since it will be in hardware and will just exist. Many times I just use&nbsp;<strong>@(*)</strong>&nbsp;for my sensitivity lists though.</p>
+<p>The line inside the block is very important. This line says that the&nbsp;<strong>d</strong> signal to the flip flop will get the&nbsp;<strong>q</strong>&nbsp;value plus 1. This is very similar to our example with the flip flop and the not gate. We are making a loop.</p>
+<h3>Synchronous always blocks</h3>
+<pre class="brush: verilog; first-line: 15">  always @(posedge clk) begin
+    if (rst) begin
+      counter_q &lt;= 25'b0;
+    end else begin
+      counter_q &lt;= counter_d;
+    end
+  end</pre>
+<p>This block is a bit more interesting. The sensitivity list for synchronous always blocks is very important. The list uses the keyword&nbsp;<strong>posedge</strong>. This means that the block is only sensitive to the positive edge of the signal, in other words, a transition from a 0 to a 1. This is exactly what a flip flop's clock input is sensitive to.</p>
+<p>Verilog has no direct way to create flip flops. Instead, you have to use a template, like this block, for the tools to realize that is what you wanted. This block basically just describes the function of a flip flop that has input <strong>counter_d</strong>, output&nbsp;<strong>counter_q</strong>, clock&nbsp;<strong>clk</strong>, and reset&nbsp;<strong>rst</strong>.&nbsp;</p>
+<p>The if statement in the block is used to reset the flip flop when&nbsp;<strong>rst</strong> is 1. When&nbsp;<strong>rst</strong> is 0, the flip flop will copy the value of&nbsp;<strong>counter_d</strong> to&nbsp;<strong>counter_q</strong> at the positive edge of&nbsp;<strong>clk</strong>.&nbsp;</p>
+<h3>The counter</h3>
+<p>Let's look at what this module will actually do. Right after the&nbsp;<strong>rst</strong> signal goes low,&nbsp;<strong>counter_q</strong> will be 0. That means that&nbsp;<strong>counter_d</strong> will be 1, since our combiational block assigns it&nbsp;<strong>counter_q</strong> plus 1.</p>
+<p>At the next positive edge of&nbsp;<strong>clk</strong>,&nbsp;<strong>counter_q</strong>&nbsp;will be assigned the value of&nbsp;<strong>counter_d</strong>, or 1. Once&nbsp;<strong>counter_q</strong> is 1,&nbsp;<strong>counter_d</strong> must be 2! You should be able to see what will continue to happen. Each clock cycle&nbsp;<strong>counter_q</strong> will increase by 1. But what happens when&nbsp;<strong>counter_q</strong> is 25'b1111111111111111111111111 (the max value)?</p>
+<p>Since we are adding a 1 bit number to a 25 bit number, the result can be up to 26 bits, but since we are storing it into a 25 bit reg we lose the last bit. That means that when&nbsp;<strong>counter_q</strong> is the max value,&nbsp;<strong>counter_d</strong> is 0 and the process starts all over again.</p>
+<p>Our counter will continuously count from 0 to 33554431 (2^25 - 1).&nbsp;</p>
+<p>How do we make an LED blink from this counter? It's simple once &nbsp;you realize that for half the time the most significant bit is 1 and the other half of the time it's 0. This is because if&nbsp;<strong>counter_q</strong> is less than 16777216 (2^24), then the 24th but must be 0 and when it is equal or greater it must be 1. That means we can just connect the LED to the most significant bit of our counter! If you need to convince yourself this is true try writing out the binary values from 0-7 and look at how the MSB (most significant bit) changes.</p>
+<p>How fast will the LED blink though? We know that the clock frequency is 50MHz, or 50,000,000 clock cycles per second. Since our counter takes 2^25 cycles to overflow we can calculate the blinker time, 2^25 / 50,000,000 or about 0.67 seconds. The LED will turn on and off every 0.67 seconds. If you wanted to make that time longer, you can just make the counter 26 bits long and the time will double to 1.34 seconds. If you wanted to make it blink faster you can make the counter shorter.</p>
+<h3>Non-blocking assignments</h3>
+<p>You may have noticed that in our combinational block we used <strong>=</strong>&nbsp;to assign&nbsp;<strong>counter_d</strong> a value, but in the synchronous block we used <strong>&lt;=</strong>&nbsp;to assign the value. The &lt;= operator is used for&nbsp;<strong>non-blocking assignments</strong>. All that means is all the values assigned with &lt;= get assigned immediately in parallel.</p>
+<p>When you use just =, which is used for&nbsp;<strong>blocking assignments</strong>, that line must finish before the next one can happen.</p>
+<p>This isn't too important now, just know that &lt;= is generally used in the synchronous block while = is used in the combinational block.</p>
+<h3>Instantiating a module</h3>
+<p>Now we have to instantiate our module from the top level of our design. Open up&nbsp;<strong>mojo_top</strong> and edit it so it looks like the following.</p>
+<pre class="brush: verilog">module mojo_top(
+    // 50MHz clock input
+    input clk,
+    // Input from reset button (active low)
+    input rst_n,
+    // cclk input from AVR, high when AVR is ready
+    input cclk,
+    // Outputs to the 8 onboard LEDs
+    output[7:0]led,
+    // AVR SPI connections
+    output spi_miso,
+    input spi_ss,
+    input spi_mosi,
+    input spi_sck,
+    // AVR ADC channel select
+    output [3:0] spi_channel,
+    // Serial connections
+    input avr_tx, // AVR Tx =&gt; FPGA Rx
+    output avr_rx, // AVR Rx =&gt; FPGA Tx
+    input avr_rx_busy // AVR Rx buffer full
+  );
+  
+  wire rst = ~rst_n; // make reset active high
+  
+  // these signals should be high-z when not used
+  assign spi_miso = 1'bz;
+  assign avr_rx = 1'bz;
+  assign spi_channel = 4'bzzzz;
+  
+  assign led[7:1] = 7'b0;
+  
+  blinker awesome_blinker (
+    .clk(clk),
+    .rst(rst),
+    .blink(led[0])
+  );
+  
+endmodule</pre>
+<p>You can see where our blinker is being instantiated at line 24. The first line tells what module we are instantiating (blinker) and what we want to name this instance of it (awesome_blinker). The rest of the code is used to connect the inputs and outputs of our module. The module signal name is the first part after the . and the signal to connect it to is in the ().</p>
+<p>In this case we just connect the clock and reset lines and the output to one of the LEDs.</p>
+<p>You should now be able to synthesize your design and load it onto the Mojo to see an LED blink about 2x per second.</p>

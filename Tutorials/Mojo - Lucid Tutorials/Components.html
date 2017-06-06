@@ -1,0 +1,156 @@
+<p>In this tutorial we will use the USB port and create a project that will echo back all the data sent to the Mojo.</p>
+<p>This will teach you how to use components in your projects.</p>
+<h2>Getting Started</h2>
+<p>
+    Like before, we will start by creating a new project. Go to <b>File->New Project...</b> and create a new Lucid project. I'm calling mine <i>Serial Port Echo</i>. It is from the <i>Base Project</i> example.
+</p>
+<p>
+    Great! Now we have a bare-bones project. The Mojo's USB port is accessible to the FPGA through the AVR (the microcontroller). The AVR acts as a USB&lt;-&gt;serial bridge once the FPGA is configured so we need to talk to the AVR over <b>UART</b> (<b>U</b>niversal <b>A</b>synchronous <b>R</b>eceiver <b>T</b>ransmitter).
+</p>
+<h2>Components</h2>
+<p>
+    Components are prewritten modules that you will likely need to use in many of your projects. For this tutorial, we need to add the <i>AVR Interface</i> component to our project.
+</p>
+<p>
+    Launch the <i>Component Selector</i> by going to <b>Project->Add Components...</b>
+</p>
+<p>Under <i>Interfaces</i> you will find the component <i>AVR Interface</i>. Click the checkbox next to it.</p>
+<p><img src="{{media url="wysiwyg/lucid/components.png"}}" alt="Component Selector" /></p>
+<p>Notice that there are four more components under <i>AVR Interface</i> that automatically got selected. These are <b>dependencies</b> of <i>AVR Interface</i>. That means they must be included for it to work.</p>
+<p>You can click each one for a short description of what it does. Each of the dependencies can be included separately for use if your own projects if you want (they exist in other categories).</p>
+<p>You should take some time to look at what components are available to you for your future projects.</p>
+<p>Click <b>Add</b> to copy the components into your project.</p>
+<p>Notice that there is a new category called <i>Components</i>.</p>
+<p><img src="{{media url="wysiwyg/lucid/components_added.png"}}" alt="Components Added to Project" /></p>
+<p>You can open any of the components you want to take a look at how they work. However, for this tutorial we will be using them as a black box.</p>
+<h2>Instantiating the Component</h2>
+<p>Now that the components we need are in our project, we need to use them.</p>
+<p>We are going make some changes in <i>mojo_top.luc</i>.</p>
+<pre class="brush:lucid;first-line:18">
+  .clk(clk) {
+    // The reset conditioner is used to synchronize the reset signal to the FPGA
+    // clock. This ensures the entire FPGA comes out of reset at the same time.
+    reset_conditioner reset_cond;
+
+    .rst(rst){
+      // the avr_interface module is used to talk to the AVR for access to the USB port and analog pins
+      avr_interface avr;
+    }
+  }
+</pre>
+<p>This will create an instance of <i>avr_interface</i> named <i>avr</i>.</p>
+<p>If you only do this, you will actually get an error. The error is because some of the inputs to the module were never assigned. Add the following to line 33.</p>
+<pre class="brush:lucid;first-line:33">
+    // connect inputs
+    avr.cclk = cclk;
+    avr.spi_ss = spi_ss;
+    avr.spi_mosi = spi_mosi;
+    avr.spi_sck = spi_sck;
+    avr.rx = avr_tx;
+
+    // connect outputs
+    spi_miso = avr.spi_miso;
+    spi_channel = avr.spi_channel;
+    avr_rx = avr.tx;
+    avr.channel = hf; // ADC is unused so disable
+    avr.tx_block = avr_rx_busy; // block TX when AVR is busy 
+</pre>
+<p>Here we are just connecting the inputs and outputs of the <i>avr</i> instance to the inputs and outputs of our module.</p>
+<p>Also, now that the connections to the AVR are actually being used, don't forget to remove the following lines that assign default values from the always block.</p>
+<pre class="brush:lucid">
+    spi_miso = bz;          // not using SPI
+    spi_channel = bzzzz;    // not using flags
+    avr_rx = bz;            // not using serial port
+</pre>
+<p>Note that <i>avr.channel</i> is set to <i>hf</i>, this will disable the ADC since it is an invalid channel. You should disable the ADC when you aren't using it because the AVR with otherwise spend time taking readings. You can get better USB data rates when it is disabled.</p>
+<p>Also note that <i>avr.rx</i> connects to <i>avr_tx</i> and <i>avr.tx</i> connects to <i>avr_rx</i>. This is because the top level signals were named the same as those on the AVR while the module signal names are its own. You want the module's transmitter to connect to the AVR's receiver and vice versa.</p>
+<p>We are still missing some connections, but first a small detour.</p>
+<h3>Sending and Receiving Data</h3>
+<p>When new data arrives, the signal <i>avr.new_rx_data</i> goes high. This tells you that the data of <i>avr.rx_data</i> is valid. Normally you would want to wait for <i>avr.new_rx_data</i> to go high and then do something with the data.</p>
+<p>To write data to the USB port is the same idea. We set <i>avr.tx_data</i> to the byte to send and we set <i>avr.new_tx_data</i> high. However, there is one more signal to look out for. That is <i>avr.tx_busy</i>. If this signal is high, the transmitter is busy for some reason, either it is currently sending a byte or the AVR can't take any more data at this moment. Either way, if you try to send data when this is high, it will be ignored.</p>
+<p>For this simple example, we are going to ignore <i>avr.tx_busy</i> and just live with dropped data if too much stuff is sent at once. The next tutorial will handle this more gracefully.</p>
+<p>All we want to do is echo data we receive back to the transmitter. To do this we can just connect the transmitter to the receiver.</p>
+<pre class="brush:lucid;first-line:47">
+    // connect the receiver to the transmitter
+    // to echo the data back
+    avr.tx_data = avr.rx_data;
+    avr.new_tx_data = avr.new_rx_data;
+</pre>
+<p>You should now be able to build your project and load it on the Mojo. If you fire up your favorite serial port monitor and connect to the Mojo, any text you send should be sent right back. Note that the baud rate you set doesn't matter (it's ignored) as long as it's not 1200, which is used to put the AVR into bootloader mode.</p>
+<h2>Capturing Data</h2>
+<p>Before we wrap up, let's do a little more with the incoming data. We are going to save the last byte received and display it on the LEDs.</p>
+<p>To do this this, we need an 8 bit dff.</p>
+<pre class="brush:lucid;first-line:26">
+    dff data[8]; // flip-flops to store last character
+</pre>
+<p>we can then write to the <i>dff</i> when we have new data.</p>
+<pre class="brush:lucid;first-line:53">
+    if (avr.new_rx_data) // if new data
+      data.d = avr.rx_data; // write it to data
+
+    led = data.q; // connect the LEDs to our flip-flop
+</pre>
+<p>On the last line, we connect the LEDs to the output of the <i>dff</i>.</p>
+<p>If you don't assign a <i>dff</i> a value, then it will retain the last value it had. Since we are only assigning it a value when <i>avr.new_rx_data</i> is high, it will hold the last byte until the next one comes in.</p>
+<p>Now, if you build and load your project, when you fire up a serial port monitor you should not only see the text you send back in the monitor, but the LEDs on the Mojo should also changed depending on the character you sent.</p>
+<p>The full module looks like this.</p>
+<pre class="brush:lucid">
+module mojo_top (
+    input clk,              // 50MHz clock
+    input rst_n,            // reset button (active low)
+    output led [8],         // 8 user controllable LEDs
+    input cclk,             // configuration clock, AVR ready when high
+    output spi_miso,        // AVR SPI MISO
+    input spi_ss,           // AVR SPI Slave Select
+    input spi_mosi,         // AVR SPI MOSI
+    input spi_sck,          // AVR SPI Clock
+    output spi_channel [4], // AVR general purpose pins (used by default to select ADC channel)
+    input avr_tx,           // AVR TX (FPGA RX)
+    output avr_rx,          // AVR RX (FPGA TX)
+    input avr_rx_busy       // AVR RX buffer full
+  ) {
+
+  sig rst;                  // reset signal
+
+  .clk(clk) {
+    // The reset conditioner is used to synchronize the reset signal to the FPGA
+    // clock. This ensures the entire FPGA comes out of reset at the same time.
+    reset_conditioner reset_cond;
+
+    .rst(rst){
+      // the avr_interface module is used to talk to the AVR for access to the USB port and analog pins
+      avr_interface avr;
+      dff data[8]; // flip-flops to store last character
+    }
+  }
+
+  always {
+    reset_cond.in = ~rst_n; // input raw inverted reset signal
+    rst = reset_cond.out;   // conditioned reset
+
+    // connect inputs of avr
+    avr.cclk = cclk;
+    avr.spi_ss = spi_ss;
+    avr.spi_mosi = spi_mosi;
+    avr.spi_sck = spi_sck;
+    avr.rx = avr_tx;
+    avr.channel = hf;           // ADC is unused so disable
+    avr.tx_block = avr_rx_busy; // block TX when AVR is busy
+
+    // connect outputs of avr
+    spi_miso = avr.spi_miso;
+    spi_channel = avr.spi_channel;
+    avr_rx = avr.tx;
+
+    // connect the receiver to the transmitter
+    // to echo the data back
+    avr.tx_data = avr.rx_data;
+    avr.new_tx_data = avr.new_rx_data;
+
+    if (avr.new_rx_data) // if new data
+      data.d = avr.rx_data; // write it to data
+
+    led = data.q; // connect the LEDs to our flip-flop
+  }
+}
+</pre>

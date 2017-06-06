@@ -1,0 +1,310 @@
+<p>
+    This tutorial will walk you though creating your first project and making the LED on the Mojo light up when you press the reset button.
+</p>
+<p>
+    Before you start you need to have the Mojo IDE installed and you should be installing (or downloading) ISE as it is needed for the end of this tutorial. For more info <a href="/tutorials/lucid">click here</a>.
+</p>
+<h2>
+    Creating a New Project
+</h2>
+<p>
+    Launch the Mojo IDE. After click through the welcome screen, you should see the following.
+</p>
+<p><img src="{{media url="/wysiwyg/lucid/mojo_ide.png"}}" alt="Mojo IDE"/></p>
+<p>
+    Click on <b>File->New Project</b>. In the dialog that pops up enter a <b>Project Name</b> of <b>LEDtoButton</b>. You can leave the default workspace if you want or browse for a different one. This is where all your projects will be stored
+</p>
+<p>
+    Use the drop-down menu to choose the board you are using.
+</p>
+<p>
+    Leave the language set to Lucid and <b>From Example</b> set to <b>Base Project</b>. This will copy a bare-bones project as the starting point.
+</p>
+<p>
+    It should now look something like this. Note that your workspace will be different.
+</p>
+<p><img src="{{media url="/wysiwyg/lucid/new_proj.png"}}" alt="New Project Dialog"/></p>
+<p>
+    Click <i>Create</i> to create your project.
+</p>
+<p>
+    Back in the main window, expand the tree on the left to find <b>mojo_top.luc</b> inside of <b>Source</b>. Double click on it to open it in the editor.
+</p>
+<p><img src="{{media url="/wysiwyg/lucid/mojo_top.png"}}" alt="Opened mojo_top.luc"/></p>
+<p>
+    The top file contains all the external inputs and outputs of your design. Your future projects can be built out of many modules, but they all must be sub-modules to this top module. This will be covered more in a later tutorial. For now, we will make all our edits to this file.
+</p>
+<p>
+    Conveniently, the default file has all the inputs and outputs that are hardwired to the FPGA on the Mojo already declared. This way you can just use them without having to look up what pins they connect to. However, you may have noticed the yellow underline under all of the inputs. This is because we aren't using them currently and the IDE is just giving us a warning.
+</p>
+<p>
+    If you hover your cursor over a warning or error, text will show up to let you know what is going on. Also when you attempt to build your project (click the hammer icon, you need ISE installed for this) all the warnings and errors will be printed in the console.
+</p>
+<h2>
+    The Contents of a Module
+</h2>
+<p>
+    Before we continue on, let's cover the basics of what makes up a module and what a module even is. A module is way to organize your project into smaller pieces broken apart by function. It is very similar to the concept of functions when programming where you break down your program into smaller more manageable pieces. Modules are also nice because they can be reused in multiple parts of your design.
+</p>
+<h3>
+    Module Declaration
+</h3>
+<p>
+    The first part of any module is the <b>module declaration</b>. This is lines 1 through 14, reproduced below.
+</p>
+<pre class="brush:lucid">module mojo_top(
+    input clk,              // 50MHz clock
+    input rst_n,            // reset button (active low)
+    output led [8],         // 8 user controllable LEDs
+    input cclk,             // configuration clock, AVR ready when high
+    output spi_miso,        // AVR SPI MISO
+    input spi_ss,           // AVR SPI Slave Select
+    input spi_mosi,         // AVR SPI MOSI
+    input spi_sck,          // AVR SPI Clock
+    output spi_channel [4], // AVR general purpose pins (used by default to select ADC channel)
+    input avr_tx,           // AVR TX (FPGA RX)
+    output avr_rx,          // AVR RX (FPGA TX)
+    input avr_rx_busy       // AVR RX buffer full
+) {</pre>
+<p>
+    It always starts off with the <b>module</b> keyword followed by the name of the module. In this case it is <i>mojo_top</i>. It is convention to name your module the same thing as the file name.
+</p>
+<p>
+    After the module name comes an optional <b>parameter declaration</b>, this isn't used in our module and it will be covered in a later tutorial.
+</p>
+<p>
+    After that is the <b>port declaration</b>. This is where you specify all the <b>inputs</b>, <b>outputs</b>, and <b>inouts</b> of your module. An <b>inout</b> is a bi-directional port and will also covered in a later tutorial.
+</p>
+<p>
+    Most of the ports in this module are single bit signals. However, the outputs <i>led</i> and <i>spi_channel</i> are multi-bit signals. <i>led</i> consists of 8 bits and <i>spi_channel</i> is 4 bits. This is declared by the [8] and [4] after the signal's names, respectively.
+</p>
+<p>
+    The reason <b>led</b> is 8 bits wide, is because the Mojo has 8 LEDs on it! Each bit of the signal connects to one of the LEDs on the board.
+</p>
+<p>
+    We only care about two of these ports for our project, <i>led</i> and <i>rst_n</i>. As you may have guessed, <i>rst_n</i> connects to the reset button. The <i>_n</i> part of it's name is because the signal is active low (as stated in the comment). This means that the value is typically 1 (high), but when the button is pressed (active) it is 0 (low).
+</p>
+<h3>
+    The Always Block
+</h3>
+<p>
+    There is some stuff before the always block, but we will get back to that later (it will make more sense then). So for now, just ignore it.
+</p>
+<p>
+    Always blocks are where all the magic happens. It is where you can perform computation and read/write signals. The always block gets its name because it is <i>always</i> happening. When the tools see an always block, they need to generate a digital circuit that will replicate the <i>behavior</i> that the block describes. Let's take a look at the always block in our code.
+</p>
+<pre class="brush:lucid;first-line:24">
+  always {
+    reset_cond.in = ~rst_n; // input raw inverted reset signal
+    rst = reset_cond.out;   // conditioned reset
+
+    led = 8h00;             // turn LEDs off
+    spi_miso = bz;          // not using SPI
+    spi_channel = bzzzz;    // not using flags
+    avr_rx = bz;            // not using serial port
+  }
+</pre>
+<p>
+    Notice I said the tools need to replicate the block's <i>behavior</i> and not the block. That is because inside an always block, statements that appear lower in the block have <i>priority</i> over earlier statements. This is similar to programming, and this abstraction makes it so much easier to program complex logic. However, it is important to understand you are not programming and this is just an abstraction. To make this clear take a look at this example.
+</p>
+<pre class="brush:lucid">
+  always {
+    led = 8h00;             // turn LEDs off
+    led = 8hFF;             // turn LEDs on
+  }
+</pre>
+<p>
+    What would you expect this always block to do? If you have a programming background, you may be tempted to think that the LEDs would continuously turn on and off. You're not in Kansas anymore Dorthy, this isn't programming and that's not what happens. Remember, there is no processor to run code (that is unless you explicitly make one, like a boss). When the tools see this block, they completely ignore the first line. This is because the second line has higher priory. If you were to synthesize this design, the tools would hard-wire the <i>led</i> signal to <i>8hFF</i> (all 1s).
+</p>
+<p>
+    Back to our design. Were we are assigning six signals values. Note that every output of a module <b>must</b> have a value assigned to it at all times. Since we aren't using these outputs, they are assigned with some reasonable defaults. Let's take a quick detour and look at how values are represented in Lucid.
+</p>
+<h3>
+    Representing Values
+</h3>
+<p>
+    A value is made of one or more bits. The number of bits a value has is known as it's width. There are a few ways to specify a value, some use an implied width while others allow you to explicitly set a width. If you are unfamiliar with binary or hexadecimal please read the <a href="/tutorials/digital-logic/encodings" target="_blank">Encodings Tutorial</a> before continuing.
+</p>
+<p>
+    The first way to represent a value is to just type a decimal number. For example, 9.
+</p>
+<p>
+    Sometimes it’s easier to specify a number with a different radix than 10 (the implied default). Lucid supports three different radix, 10 (decimal), 16 (hexadecimal), and 2 (binary). To specify the radix, prepend d, h, or b to specify decimal, hexadecimal, or binary respectively. For example, hFF has the decimal value 255 and b100 has the decimal value 4. If you don’t append a radix indicator, decimal is assumed.
+</p>
+<p>
+    It is important to remember that all number will be represented as bits in your circuit. When you specify a number this way, the width of the number will be the minimum number of bits required to represent that value for decimal. For binary, it is simply the number of digits and for hexadecimal it is four times the number of digits. For example, the value 7 will be three bits wide (111), <i>1010</i> will be four bits wide, and <i>hACB</i> will be 12 bits wide.
+</p>
+<p>
+    Sometimes you need more control over the exact width of a number. In those cases you can specify the number of bits by prepending the number of bits and radix to the value. For example, <i>4d2</i> will be the value 2 but using 4 bits instead of the minimum 2 (binary value 0010 instead of 10). You must specify the radix when specifying the width to separate the width from the value.
+</p>
+<p>
+    If you specify a width smaller than the minimum number of bits required, the number will drop the most significant bits. When this happens you will get a warning.
+</p>
+<h3>
+    Z and X
+</h3>
+<p>
+    When you specify a decimal number, all the bits in your value will be either 0 or 1. However, each bit can actually be one of four values, 0, 1, x, or z. The values of 0 and 1 are fairly self explanatory, it just means the bit is high (1) or low (0). The value of x means <b>don't care</b>. It means you want to assign a value, but you really don't care if it is 1 or 0. This is useful for the synthesizer because your circuit may be simpler in one of the cases and it gives the tools the freedom to choose. During simulation, x also means unknown. Z means that the bit is <b>high-impedance</b> or tri-stated. This means that it is effectively disconnected. Note that FPGAs can't realize high-impedance signals internally, so the only time you should use z is for outputs of the top module.
+</p>
+<p>
+    Back to our always block, the first two lines connect the input <i>rst_n</i> to the input of the <i>reset_cond</i> module. Modules can be nested which makes it possible to reuse them and helps make your project manageable. This is all covered later in more detail so don't get hung up over this yet. The only important thing to know about these two lines, is that the <i>rst_n</i> signal is active low (0 when the button is pressed, 1 otherwise) while the <i>rst</i> signal is active high.
+</p>
+<p>
+    The next line assigns the <i>led</i> output to all zeros. This turns off all the LEDs.
+</p>
+<p>
+    The next three lines assign the outputs to z. This is because they aren't being used and we shouldn't drive these as they connect directly to the microcontroller on the Mojo (to use these you have to wait for the microcontroller to signal that it is ready first, this is also covered later).
+</p>
+<p>
+    Looking at this always block, we can see there are no redundant assignments (like in our led on/off example). That means these six signals will literally be connected to these values. The <i>led</i> output will be tied low, and the other three outputs will be floating.
+</p>
+<h2>
+    Connecting the Button
+</h2>
+<p>
+    We are going to modify the module to connect the reset button to the first LED so that when you push the button the LED turns on.
+</p>
+<p>
+    To do this we need to modify line 28, where <i>led</i> is assigned.
+</p>
+<pre class="brush:lucid;first-line:28">    led = c{7h00, rst};     // connect rst to the first LED</pre>
+<p>
+    The output <i>led</i> is an 8 bit array. That means when you assign it a value you need to provide an 8 bit array. However, the signal <i>rst</i> is a single bit wide. To compensate for this we use the concatenation operator.
+</p>
+<p>
+    To concatenate multiple arrays into one, you can use the concatenation operator, c{ x, y, z }. Here the arrays (or single bit values) x, y, and z will be concatenated to form a larger array.
+</p>
+<p>
+    In our code we are concatenating the constant <i>7h0</i> with <i>rst</i>. The constant here is seven zeros. The 7 represents the size, h represents the number base (in this case hexadecimal) and 0 represents the value. Since we just need a bunch of zeros, the number base doesn’t really matter and we could have used <i>7b0</i>, or <i>7d0</i>, for binary or decimal respectively.
+</p>
+<p>
+    Note that values are zero padded if the specified width is larger than the size required to store the value. For example, <i>4b11</i> would the same as <i>4b0011</i>.
+</p>
+<p>
+    If you don’t care about how many bits a values takes up, you don’t have to specify it. The minimum number of bits that will still fit the value will be used. For example, <i>b1101</i> is exactly the same as <i>4b1101</i>. If you are using decimal, you can even drop the d so <i>4d12</i> is the same as <i>d12</i> which is the same as just <i>12</i>. However, when you are concatenating values, you should always specify a width to make it obvious how big the array will be.
+</p>
+<h2>
+    Building Your Project
+</h2>
+<p>
+    Go ahead and click the little hammer icon in the toolbar to build your project. If you installed ISE (the Xilinx tools) in the default place, your project should start building. If you installed ISE somewhere else, go to <b>Settings->ISE Location...</b> and find the folder that is <b>Xilinx/14.7</b>. Once set you should be able to build your project.
+</p>
+<p>
+    As the project builds you should see a bunch of text spit out. Just wait for it to finish building. It should look like this.
+</p>
+<p><img src="{{media url="/wysiwyg/lucid/project_build.png"}}" alt="Project Built"/></p>
+<p>
+    The important line here is where it says <b>impl_1 finished</b>. This means your project was built without errors.
+</p>
+<h2>
+    Loading Your Project
+</h2>
+<p>
+    With your project built, plug your Mojo into your computer if you haven’t already. Then go to <b>Settings->Serial Port...</b> and select the serial port the Mojo is connected to.
+</p>
+<p>
+    It is time to load your project onto the Mojo. You have two options. The first is the hollow arrow, this will write your configuration directly to the FPGA's RAM. The second is the solid arrow, this will write your configuration to the FLASH memory on the board (as well as the FPGA). If you program to the FPGA's RAM, your configuration will be lost when the board loses power. However, if you program to the FLASH, your configuration will be automatically loaded when the board is powered up. 
+</p>
+<p>
+    If you hold shift while clicking on the solid arrow, the contents of the FLASH memory will be read back to verify the load was successful. This generally isn't needed and is only helpful when debugging a bad board. You don't need to worry about damaging the FPGA with a bad configuration because there is a CRC check built into the configuration data. That means the FPGA won't start if the data was corrupted.
+</p>
+<p>
+    If you program to RAM and then power cycle the board, the last configuration written to FLASH will automatically be loaded. This is helpful when you want to temporarily try out some configuration.
+</p>
+<p>
+    If you want to stop the FPGA from being configured at power up, you can click the eraser icon. This will wipe the FLASH memory and clear the FPGA's current configuration.
+</p>
+<p>
+    Go ahead and click the hollow arrow to program just the FPGA since we will be making some modifications soon.
+</p>
+<p><img src="{{media url="/wysiwyg/lucid/project_loaded.png"}}" alt="Project Loaded"/></p>
+<p>
+    Now look at your Mojo. You should see the <b>DONE</b> LED on. This means that the configuration was loaded successfully to the FPGA.
+</p>
+<p><img src="{{media url="/wysiwyg/lucid/ledbutton.jpg"}}" alt="LED to Button Loaded"/></p>
+<p>
+    Now push the reset button.
+</p>
+<p><img src="{{media url="/wysiwyg/lucid/ledbuttonpressed.jpg"}}" alt="Reset Pressed"/></p>
+<p>
+    Notice the LED turned on!
+</p>
+<h2>
+    Some Notes on Hardware
+</h2>
+<p>
+    When you press the button, how long does it take for the LED to turn on? If this was a processor instead of an FPGA, the processor would be in a loop reading the button state and turning the LED on or off based on that state. The amount of time between pressing it and when the LED turns on would vary depending on what code the processor was executing and how long it is until it gets back to reading the button and turning the LED on. As you add more code to your loop, this time and variation gets bigger. 
+</p>
+<p>
+    However, an FPGA is different. With this design (note I said design and not code), the button input is directly connected to the LED output. You can imagine a physical wire bridging the input to the output inside the FPGA. In reality, it's not a wire but a set of switches (multiplexers) that are set to route the signal directly to the output. Well, this is only partially true since the <i>reset_conditioner</i> is there which does some stuff to clean up the reset signal.
+</p>
+<p>
+    Since the signal doesn’t have to wait for a processor to read it, it will travel as fast as possible through the silicon to light the LED. This is almost instant (again, forget about the <i>reset_conditioner</i>)! The best part is that if you wire the button the LED then go on to create some crazy design with the rest of the FPGA, the speed of this will not slow down. This is because the circuits will operate independently as they both simply <i>exist</i>. It is this parallelism where FPGAs get their real power.
+</p>
+<h2>Duplication</h2>
+<p>
+    What if we want all the LEDs to turn on and off with the press of the button instead of just one?
+</p>
+<p>
+    Well we could do it using concatenation just like before by replacing line 20 with the following.
+</p>
+<pre class="brush:lucid;first-line:20">
+    led = c{rst,rst,rst,rst,rst,rst,rst,rst};
+</pre>
+<p>
+    However, there is a better way! This is where the array duplication syntax comes in handy. The syntax is <i>M x{ A }</i>. Here M is the number of times to duplicate A. That means we can make line 20 look like this.
+</p>
+<pre class="brush:lucid;first-line:20">
+    led = 8x{rst};
+</pre>
+<p>
+    Much cleaner! This does exactly the same thing as before, but requires a lot less typing.
+</p>
+<h2>Array Indexing</h2>
+<p>
+    There is an alternative way to write the code where we only want one LED to light. This is by assigning the parts of the led array separately.
+</p>
+<pre class="brush:lucid;first-line:20">
+    led[7:1] = 7h0;         // turn these LEDs off
+    led[0] = rst;           // connect rst to led[0]
+</pre>
+<p>
+    On line 20, the bit selector <i>[7:1]</i> is used to select the bits 7 through 1 of the led array. These seven bits are set to 0.
+</p>
+<p>
+    On line 21, <i>[0]</i> is used to select the single bit, 0, and set it to <i>rst</i>.
+</p>
+<p>
+    There are two ways to select a group of bits. The first one (and most common) is the one used above where you specify the start and stop bits (inclusive) explicitly. The other way is to specify a start bit and the total number of bits to include above or below the start bit. 
+</p>
+<p>
+    Line 20 could be rewritten as any of the following.
+</p>
+<pre class="brush:lucid">
+led[7:1] = 7b0;  // select bits 7-1
+led[7-:7] = 7b0; // select 7 bits starting from 7 and going down
+led[1+:7] = 7b0; // select 7 bits starting from 1 and going up
+</pre>
+<p>
+    The benefit of using the start-width syntax is the width is guaranteed to be constant. This means you can use a signal to specify the start index. This will be covered in a later tutorial.
+</p>
+<h2>Always Blocks</h2>
+<p>
+    Due to the nature of always blocks, you could also write the LED assignment as follows.
+</p>
+<pre class="brush:lucid;first-line:20">
+    led = 8b0;              // turn the LEDs off
+    led[0] = rst;           // connect rst to led[0]
+</pre>
+<p>
+    Because the second statement has priority over the first, <i>led[0]</i> will actually NEVER have the value 0! It will be permanently connected to <i>rst</i>. Note that the second line only assigns the first bit of <i>led</i>. That means that the other 7 bits will still receive their value from the first statement.
+</p>
+<p>
+    This is one of the weird things of working with hardware. The code you write is not run on a processor like it is when you program. Instead, the code you write is interpreted by the tools to figure out what behavior you want. The tools then create a circuit that will match that behavior. 
+</p>
+<p>
+    Always blocks are an easy way to describe complex behavior, but the way you describe the behavior and it's actual implementation can vary.
+</p>
+<p>
+    Congratulations! You've finished your first tutorial on Lucid. When you're ready for more <a href="/tutorials/lucid/synchronous-logic-tutorial">click here for the Synchronous Logic Tutorial</a>.
+</p>

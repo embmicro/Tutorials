@@ -1,0 +1,117 @@
+<p><b>Timing</b> is a term used in digital circuits to refer to the time it takes a signal to propagate from one flip-flop, through some combinational logic, to the next flip-flop.</p>
+<p>Take a look at the following diagram.</p>
+<p><img src="{{media url="wysiwyg//Timing/timing_circuit.png"}}" alt="Generic Circuit" /></p>
+<p>It is very important to understand that combinational logic is not instantaneous. It takes time for the signal to propagate. The reason for this is that digital circuits actually look like a bunch of <a href="http://en.wikipedia.org/wiki/RC_circuit" target="_blank">RC circuits</a>. MOSFETs, a type of transistor, are the transistors of choice for digital circuits. The gate (switch part) of a MOSFET acts much like a capacitor and takes a small amount of time to charge and discharge (turn on and off the transistor). The more transistors you need to turn on and off, the longer it takes.</p>
+<p>For the scope of this tutorial, it's not important to understand exactly why it takes a certain amount of time for a signal to propagate through combination logic, just that it does and the more logic you have the longer it will take.</p>
+<p>Since each flip-flop will copy the value of <b>D</b> to <b>Q</b> at the rising edge of each clock, that means that we have a single clock cycle for the output of the first flip-flop to propagate through our combinational logic and make it to the input of the second flip-flop.</p>
+<p><img src="{{media url="wysiwyg/Timing/setup_hold.png"}}" alt="Setup and Hold" /></p>
+<p>If you recal from the {{widget type="cms/widget_page_link" template="cms/widget/link/link_inline.phtml" page_id="35"}}, flip-flops <span>require their inputs to be stable for a certain amount of time before and after the rising edge of the clock</span>. <span>These times are known as</span> the <b>setup</b> and <b>hold</b> times respectively. These parameters constrain our circuit even more because now we have to ensure that the delay of our combinational logic is short enough that the signal will get there in a clock period minus the setup time. However, it can't be too fast that it violates the hold time! </p>
+<p><span>The last flip-flop parameter we'll be concerned about here is the</span> <b>clock-to-Q </b><b>propagation delay</b>.</p>
+<p><img src="{{media url="wysiwyg/Timing/clock-to-q.png"}}" alt="Clock to Q Propagation Delay" /></p>
+<p>In past tutorials, we have assumed that the moment the rising edge of the clock happens, the value of <b>D</b> showed up at <b>Q</b>. However, like all things, there is a slight delay. The <b>clock-to-Q </b><b>propagation delay</b> specifies the amount of time after the rising edge of the clock that <b>Q</b> outputs the new value. This delay cuts into the time we have for the combinational logic since the input to the combinational logic is delayed! </p>
+<p>To summarize, the time it take for the signal to propagate through the combinational logic must be shorter than the clock period minus the clock-to-Q propagation delay minus the setup time. The combinational logic delay must also be greater than the hold time minus the clock-to-Q propagation delay. </p>
+<p>If we let the combinational logic delay = <b>CLD</b>, clock period = <b>CLK</b>, setup time = <b>S</b><b>T</b>, hold time = <b>HT</b>, clock-to-Q propagation delay = <b>CQ</b>, then the following formula shows our constraints.</p>
+<p><b>HT - CQ &lt; CLD &lt; CLK - CQ - ST</b></p>
+<h3><b></b>Contamination and Propagation Delays</h3>
+<p>There is another invalid assumption we need to correct. We assumed that the output of our combinational logic was constant until the correct value showed up. This is not true. While the correct value is propagating, the output of the combinational logic can change multiple times before settling on the correct value. There are two important parameters that capture this behavior. The first, <b>contamination delay</b>, is the amount of time the output of the combinational logic will stay constant after it's inputs are changed. After that delay the outputs are <em>contaminated</em>. The second, <b>combinational logic propagation </b><b>delay</b>, is the time that it takes for the output to be valid after the input changes. </p>
+<p><span>That means for the time between the <b>contamination delay</b> and <b>propagation delay</b> of our combinational logic, its output is unpredictable and possibly invalid.</span></p>
+<p>We now have to make sure that the <b>contamination delay</b> does not violate the hold time, and that the <b>combinational logic propogation delay</b> does not violate the setup time.</p>
+<p>If we let the combinational logic propagation delay<b> = </b><b>CLPD</b> and the contamination delay = <b>CD</b> the the following new formulas capture our constraints.</p>
+<p><b>CD &gt; HT - CQ</b></p>
+<p><b></b><b>CLPD &lt; CLK - CQ - ST</b></p>
+<h3><b>Clock Skew</b></h3>
+<p>This is the last invalid assumption we need to correct. We assumed that the clock reached all the flip-flops in the circuit at the same exact time. Since the clock needs to travel through the chip, this can't possibly be the case. The difference in time it takes to reach two flip-flops is known as the <b>clock skew</b>.</p>
+<p>In some cases clock skew can actually be helpful, but in many cases it takes away time from us.</p>
+<p>If we let clock skew = <b>CS</b> then the following formulas are updated versions of the previous ones. </p>
+<p><b>CD &gt; HT - CQ +/- CS</b></p>
+<p><b></b><b>CLPD &lt; CLK - CQ - ST +/- CS</b></p>
+<p>Note that the clock skew can have either sign. This is since the clock could arrive earlier to the first flip-flop, or later. It really just depends on how the circuit is laid out on the chip. Notice that if the first flip-flop gets the clock earlier (positive clock skew in our convention), then the constraint on the <b>contamination delay</b> becomes stricter and the constraint on the <b>combinational logic propagation delay</b> becomes looser. If the clock arrives at the second flip-flop first, the opposite is true.</p>
+<p>In general clock skew is bad. This is why FPGAs have special resources dedicated to routing clock signals. These are designed to deliver the clock to the entire FPGA (or sub-sections for local clocks) with minimal clock skew. </p>
+<h3>The full picture</h3>
+<p>Enough of all these equations. Let's take a look at the following diagram which shows it all.</p>
+<p><img src="{{media url="wysiwyg/Timing/timing_complete.png"}}" alt="Complete Timing Diagram" /></p>
+<p>For this diagram, the combinational logic just inverts the signal. The signals with a suffix of 1 are the left flip-flop in the first diagram, while the ones with a suffix of 2 are the right flip-flop. The grey shaded part of the signal is to show how that pulse propagates through the circuit. </p>
+<p>If you look at <b>Q1</b> and <b>Q2</b> then you will notice how <b>Q2</b> is an inverted version of <b>Q1</b> delayed by a clock cycle (since it goes through a flip-flop).</p>
+<p>Also notice in this example, timing is met. The setup and hold times of the flip-flops are never violated. </p>
+<h3>What you can control</h3>
+<p><span>When you are using an FPGA, you have control over very few of the parameters previously mentioned. This is because they are largely determined by the physical properties of the FPGA circuitry, but also because synthesis tools do a lot of the work for you.</span></p>
+<p>The two largest factors you have direct control over are the <b>clock</b> <b>period</b> and the <b>combinational logic propagation delay</b>. The delay can be shortened by removing some of the combinational logic between two flip-flops. How you remove this logic is up to you. Besides optimization of your design, you can pipeline your design. We'll cover that in a little bit. First, let's take a look at a case when timing is not being met.</p>
+<h3>Broken timing</h3>
+<p><a href="{{media url="wysiwyg/Timing/Mojo-Timing.zip"}}">Download this project</a> and open it in ISE. </p>
+<p>The <b>timing.v</b> file is the one we are interested. Its contents are shown below.</p>
+<pre class="brush:verilog;">module timing (
+    input clk,
+    input [7:0] a,
+    input [7:0] b,
+    output [31:0] c
+  );
+  
+  reg [7:0] a_d, a_q, b_d, b_q;
+  reg [31:0] c_d, c_q;
+  
+  assign c = c_q;
+  
+  always @(*) begin
+    a_d = a;
+    b_d = b;
+    c_d = (a_q * a_q) * (a_q * a_q) * (b_q * b_q) * (b_q * b_q);
+  end
+  
+  always @(posedge clk) begin
+    a_q &lt;= a_d;
+    b_q &lt;= b_d;
+    c_q &lt;= c_d;
+  end
+  
+endmodule</pre>
+<p>Notice line 16. This line contains a ton of multiplication. All of these multiplications will be instantiated as a bunch of combinational logic between the flip-flops used at the input and output of the module.</p>
+<p>After you open it, build the programming file. Once that done it should look like the following screen shot.</p>
+<p><img src="{{media url="wysiwyg/Timing/ise-timing.resized.png"}}" alt="ISE Timing Project" /></p>
+<p>Notice the spot that is highlighted. Even though the project built successfully, it failed to meet timing. That means that our design won't work properly at the clock we specified. There is simply too much combinational logic to put between two flip flops in this design.</p>
+<p>You can click on <b>(Timing Report)</b> to get more details on where timing could not be meet.</p>
+<p><img src="{{media url="wysiwyg/Timing/ise-timing-report.resized.png"}}" alt="ISE Timing Report" /></p>
+<p>While there are many paths that failed to meet timing, it's usually most helpful to just look at the worst ones and see where the problem is. Conveniently, those show up at the top of the list.</p>
+<p>Take a look at the <b>Source</b> and <b>Destination</b> fields. Even though what they say is a bit cryptic, you can usually glean enough information to tell where the problem is. In our case you can tell that the source is in our slow_multiply module and has to do with the signal <b>a_q</b>. This is exactly what we expect with all those multiplies.</p>
+<p>One important thing to notice in the report is where it specifies the <b>minimum period</b>. In our case it says the minimum period is 25.334ns. That means the fastest our clock can be is 39.47 MHz (1 / 25.334ns). If we didn't care about maintaining the 50MHz clock, we could scale it down to say a 35MHz clock and our circuit would perform as expected.</p>
+<p>Another important thing to notice is that there are no timing errors for the <b>hold paths</b>. This is because ISE tries really hard to satisfy the hold time even if that means making some of the setup times be violated. The reason for this is as long as all the hold times are satisfied, you can always scale back your clock speed to get your circuit to work. If there were hold time violations, the circuit could never work regardless of the clock frequency.</p>
+<h3>Pipelining</h3>
+<p>So assuming we want to keep our 50MHz clock, how do we fix the timing issue? The simple answer is to use a technique called <b>pipelining</b>. All that pipelining is, is adding flip-flops in the middle of big combinational logic blocks. In this case, since the timing problem isn't too bad, we are going to just place a set of flip-flops before the final largest (and slowest) multiplication.</p>
+<p>Open up <b>timing.v</b> and replace it with the following.</p>
+<pre class="brush:verilog;">module timing (
+    input clk,
+    input [7:0] a,
+    input [7:0] b,
+    output [31:0] c
+  );
+  
+  reg [7:0] a_d, a_q, b_d, b_q;
+  reg [31:0] c_d, c_q;
+  
+  reg [15:0] temp1_d, temp1_q;
+  reg [15:0] temp2_d, temp2_q;
+  
+  assign c = c_q;
+  
+  always @(*) begin
+    a_d = a;
+    b_d = b;
+    temp1_d = (a_q * a_q) * (a_q * a_q);
+    temp2_d = (b_q * b_q) * (b_q * b_q);
+    c_d =  temp1_q * temp2_q;
+  end
+  
+  always @(posedge clk) begin
+    a_q &lt;= a_d;
+    b_q &lt;= b_d;
+    c_q &lt;= c_d;
+    temp1_q &lt;= temp1_d;
+    temp2_q &lt;= temp2_d;
+  end
+  
+endmodule</pre>
+<p>Now, the fourth power of <b>a</b> and <b>b</b> are computed in one clock cycle and in the next clock cycle those results are then multiplied to create the final result. </p>
+<p>If you save the file and rebuild the project, you will notice that timing is now satisfied.</p>
+<p><img src="{{media url="wysiwyg/Timing/ise-timing-met.resized.png"}}" alt="ISE Timing Met" /></p>
+<p>One important note with pipelining is that we only increase the latency of our result. We are not decreasing the throughput. That means that we can feed in a new set of numbers to be multiplied every clock cycle, but that their results won't show up at <b>c</b> until two clock cycles later. If we just decreased the clock speed to meet timing, we would be increasing latency and decreasing throughput. </p>
+<h3>Conclusion</h3>
+<p>It is very important to be thinking of what clock speed you will want your design to run at when you are writing your code. You will get a feel for when something will take too long to complete in one clock cycle with experience. One of the reasons the Mojo has a 50MHz clock is because 50MHz is fairly slow. That means that unless you decided to do a ton of multiplication or some other complex logic, you probably won't run into timing issues. However, you can synthesize faster clocks inside the FPGA and if you start clocking the Mojo at, say 150MHz, timing can become a real concern.</p>

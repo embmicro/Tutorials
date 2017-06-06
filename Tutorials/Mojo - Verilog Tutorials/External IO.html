@@ -1,0 +1,73 @@
+<p>So far the tutorials have only used the signals defined already for you in the <a href="https://github.com/embmicro/mojo-base-project/archive/master.zip" target="_blank">base project</a>. This tutorial will be a very short example on how you can define your own inputs and outputs in your top level module and have them connect to the IO headers on the Mojo.</p>
+<h3>Revisiting the button</h3>
+<p>The project for this tutorial will be very similar to the {{widget type="cms/widget_page_link" template="cms/widget/link/link_inline.phtml" page_id="25"}} page with one difference. Instead of using the reset button to control the LED, we are going to hook up an external button to control the LED.</p>
+<p>This project assumes you've connected a button between&nbsp;<strong>P50</strong> and&nbsp;<strong>V+&nbsp;</strong>(3.3V) on the Mojo (P50 is labeled&nbsp;<strong>50</strong>) and a 10K pulldown resistor from&nbsp;<strong>P50</strong> and&nbsp;<strong>GND</strong>. This way P50 will be low when the button isn't pressed but high when it is.</p>
+<p>Like before we will start with the <a href="https://github.com/embmicro/mojo-base-project/archive/master.zip" target="_blank">Mojo base project</a> so make sure you've downloaded that if you haven't already.</p>
+<p>We first need to open up&nbsp;<strong>mojo_top.v</strong> and make two minor changes.</p>
+<p>We need to add our button to the module declaration.</p>
+<pre class="brush: verilog; first-line: 14">    input button
+</pre>
+<p>This line should come at the end of the list (altough order do not really matter). Make sure you put a<strong>&nbsp;</strong>comma at the end of the previous line as well.</p>
+<p>The next change is to wire up our new input to the LED.</p>
+<pre class="brush: verilog; first-line: 23">assign led[7:1] = 7'b0;
+assign led[0] = button;
+</pre>
+<p>After these two changes the file should look like this.</p>
+<pre class="brush: verilog;">module mojo_top(
+    // 50MHz clock input
+    input clk,
+    // Input from reset button (active low)
+    input rst_n,
+    // cclk input from AVR, high when AVR is ready
+    input cclk,
+    // Outputs to the 8 onboard LEDs
+    output[7:0]led,
+    // AVR SPI connections
+    output spi_miso,
+    input spi_ss,
+    input spi_mosi,
+    input spi_sck,
+    // AVR ADC channel select
+    output [3:0] spi_channel,
+    // Serial connections
+    input avr_tx, // AVR Tx =&gt; FPGA Rx
+    output avr_rx, // AVR Rx =&gt; FPGA Tx
+    input avr_rx_busy, // AVR Rx buffer full
+    input button
+  );
+  
+  wire rst = ~rst_n; // make reset active high
+  
+  // these signals should be high-z when not used
+  assign spi_miso = 1'bz;
+  assign avr_rx = 1'bz;
+  assign spi_channel = 4'bzzzz;
+  
+  assign led[7:1] = 7'b0;
+  assign led[0] = button;
+  
+endmodule
+</pre>
+<p>Our module now has a new input named&nbsp;<strong>button</strong> which we wired up to the first LED. None of this should be surprising to you as it is almost exactly the same as the first time this was covered.</p>
+<h3>The UCF File</h3>
+<p>This is where all the good stuff happens.</p>
+<p>There seems to be a very big piece of information missing from our above module. Sure we just declared a new input for our design and connected it up to the LED, but how do we know what IO pin that input connects to? This is where the&nbsp;<strong>U</strong>ser&nbsp;<strong>C</strong>onstraints&nbsp;<strong>F</strong>ile (<strong>UCF</strong>) comes in.&nbsp;</p>
+<p>In the&nbsp;<strong>src</strong> folder of the project you will find a file called&nbsp;<strong>mojo.ucf</strong> open that file now.</p>
+<p>Take a good look at what's inside. The first few lines are there to tell the tools that the Mojo will have a clock signal running at 50MHz. That is important for the way your design gets layed out in the FPGA because it will need to be able to run at&nbsp;<strong>at-least</strong> that speed. If for some reason the tools can't layout your design in such a way that it can run that fast it will notify you. This will be covered in much more depth later.</p>
+<p>The rest of the file is simply there to define what pins our top module (<strong>mojo_top.v</strong>) connect to! We are going to have to add a new line for our button.</p>
+<pre class="brush: ucf; first-line: 33">NET "button" LOC = P50&nbsp;| IOSTANDARD = LVCMOS33;
+</pre>
+<p>There are three parts to this line. The&nbsp;<strong>NET</strong> part tells the tools which signal you are assigning constraints to. The&nbsp;<strong>LOC</strong> part stands for <em>location</em> and defines the pin on the FPGA you want the signal to be connected to. Finally the&nbsp;<strong>IOSTANDARD</strong> specifies the standard to use. You should always use LVCMOS33 or LVTTL for the Mojo since the pins use 3.3V. For most practical purposes LVTTL and LVCMOS33 won't make a difference with your project. For more information see <a href="http://www.xilinx.com/support/documentation/user_guides/ug381.pdf" target="_blank">this document from Xilinx</a> (Page 24).</p>
+<p>If you look closely at the Mojo you will see a bunch of numbers next to the IO ports. These corrispond to the number you set&nbsp;<strong>LOC</strong> to. In this example I chose to connect the button the pin labled with&nbsp;<strong>50</strong>&nbsp;(top header, left side, bottom row) so the pin is&nbsp;<strong>P50</strong>.&nbsp;</p>
+<p>You can also specify the pins an array should connect to by adding a line for each element and indexing that element with the &lt;&gt; notation. The signal&nbsp;<strong>led</strong> is an example of how this is done.</p>
+<pre class="brush: ucf; first-line: 11">NET "led&lt;0&gt;" LOC = P134 | IOSTANDARD = LVCMOS33;
+NET "led&lt;1&gt;" LOC = P133&nbsp;| IOSTANDARD = LVCMOS33;
+NET "led&lt;2&gt;" LOC = P132&nbsp;| IOSTANDARD = LVCMOS33;
+NET "led&lt;3&gt;" LOC = P131&nbsp;| IOSTANDARD = LVCMOS33;
+NET "led&lt;4&gt;" LOC = P127&nbsp;| IOSTANDARD = LVCMOS33;
+NET "led&lt;5&gt;" LOC = P126&nbsp;| IOSTANDARD = LVCMOS33;
+NET "led&lt;6&gt;" LOC = P124&nbsp;| IOSTANDARD = LVCMOS33;
+NET "led&lt;7&gt;" LOC = P123&nbsp;| IOSTANDARD = LVCMOS33;
+</pre>
+<p>Once you've added that line to the end of the UCF file, save both files and you should be able to generate the bin file to load onto the Mojo. Go ahead and connect a button (make sure it has a pullup resistor) to pin 50 and test out your design. The LED should light up when the pin is high.</p>
+<p>The same thing can be done for outputs, you just need to change the direction in the module declaration.</p>

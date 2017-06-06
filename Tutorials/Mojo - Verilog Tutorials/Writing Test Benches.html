@@ -1,0 +1,192 @@
+<p><strong>Test benches</strong> are used to simulate your design without the need of any physical hardware. The biggest benefit of this is that you can actually inspect every signal that is in your design. This definitely can be a time saver when your alternatives are staring at the code, or loading it onto the FPGA and probing the few signals brought out to the external pins. However, you don't get this all for free. Before you can simulate your design you must first write a&nbsp;<strong>test bench</strong>.&nbsp;</p>
+<h3>What is a Test Bench</h3>
+<p>What exactly is a&nbsp;<strong>test bench</strong>? A test bench is actually just another Verilog file! However, the Verilog you write in a test bench is not quite the same as the Verilog you write in your designs. This is because all the Verilog you plan on using in your hardware design&nbsp;<strong>must be&nbsp;</strong>synthesizable, meaning it has a hardware equivalent. The Verilog you write in a test bench does not need to be synthesizable because you will only ever simulate it!</p>
+<p>Let us assume we have a module called <strong>basic_and</strong> that looks like this.</p>
+<pre class="brush:verilog">module basic_and #(parameter WIDTH = 1)(
+    input [WIDTH-1:0] a,
+    input [WIDTH-1:0] b,
+    output [WIDTH-1:0] out
+  );
+  
+  assign out = a & b;
+  
+endmodule
+</pre>
+<p>The functionality of this module should be fairly apparent. It takes two inputs, <strong>a</strong> and <strong>b</strong>, of width&nbsp;<strong>WIDTH</strong> and&nbsp;<strong>ands</strong> them together for the output,&nbsp;<strong>out</strong>.</p>
+<p>If we want to now test this module to make sure it is actually doing what we think it is, we can write a test bench! It is best practice to name the test bench associated with a module the same as the module with&nbsp;<strong>_tb</strong> appended. For example, the test bench for&nbsp;<strong>basic_and</strong> is named&nbsp;<strong>basic_and_tb</strong>.&nbsp;</p>
+<p>Take a look at what a test bench for&nbsp;<strong>basic_and</strong> could look like.</p>
+<pre class="brush:verilog">module basic_and_tb();
+  
+  reg [3:0] a, b;
+  wire [3:0] out;
+  
+  basic_and #(.WIDTH(4)) DUT (
+    .a(a),
+    .b(b),
+    .out(out)
+  );
+  
+  initial begin
+    a = 4'b0000;
+    b = 4'b0000;
+    #20
+    a = 4'b1111;
+    b = 4'b0101;
+    #20
+    a = 4'b1100;
+    b = 4'b1111;
+    #20
+    a = 4'b1100;
+    b = 4'b0011;
+    #20
+    a = 4'b1100;
+    b = 4'b1010;
+    #20
+    $finish;
+  end
+  
+endmodule</pre>
+<p>A test bench starts off with a module declaration, just like any other Verilog file you've seen before. However, it is important to notice the test bench module does not have any inputs or outputs. It is entirely self contained.</p>
+<p>After we declare our variables, we instantiate the module we will be testing. In this case it's the&nbsp;<strong>basic_and</strong> module. Notice the name is&nbsp;<strong>DUT</strong>. DUT is a very common name for the module to be tested in a test bench and it stands for&nbsp;<strong>D</strong>evice&nbsp;<strong>U</strong>nder&nbsp;<strong>T</strong>est.</p>
+<pre class="brush:verilog;first-line:12">    initial begin</pre>
+<p>This line has something new, the&nbsp;<strong>initial</strong> block. The inital block is used similarly to an&nbsp;<strong>always</strong> block except that the code in the block will only run once, at the start of the simulation. Because there is no equivalent to an initial block in hardware, initial blocks are not synthesizable and can only be used in test benches.</p>
+<p>Lines 13 and 14 simply assign values to&nbsp;<strong>a&nbsp;</strong> and&nbsp;<strong>b</strong>.</p>
+<pre class="brush:verilog;first-line:15">        #20</pre>
+<p>This is another new line. The&nbsp;<strong>#</strong> syntax is used to specify a&nbsp;<strong>delay</strong>. In this case this tells the simulator to wait 20 units of time. This is important because without these delays we would have no time to observe how&nbsp;<strong>a</strong> and&nbsp;<strong>b</strong> affect the circuit. Again, there is no hardware equivalent to a delay like this, so these statements are not synthesizable.</p>
+<p>It is very important to understand that we are still simulating&nbsp;<strong>hardware</strong>. That means that the delay of 20 units only affects the block the delay is in. The rest of your design will keep chugging away as if there was no delay. This is important because it allows you to specify inputs and wait for the output to be generated.&nbsp;</p>
+<p>Finally we get to the following line.</p>
+<pre class="brush:verilog;first-line:28">        $finish;</pre>
+<p>This line tells the simulator we are done simulating.</p>
+<h3>Running a Test Bench</h3>
+<p>As with all tutorials, we will start with the <a href="https://github.com/embmicro/mojo-base-project/archive/master.zip" target="_blank">Mojo Base Project</a>, so download a fresh copy now.</p>
+<p>Open up the project in ISE and add the two source files,&nbsp;<strong>basic_and.v</strong> and&nbsp;<strong>basic_and_tb.v</strong>.</p>
+<p>Your project should look something like this.</p>
+<p><img src="{{media url="wysiwyg/test-bench/test_bench_files.png"}}" alt="Project with test bench files" /></p>
+<p>If you created the files outside of ISE then <strong>basic_and_tb</strong> may not show up under the implementation tab. This is because ISE realizes that files that end in&nbsp;<strong>_tb</strong> are test benches and will mark them for use in simulation only.&nbsp;</p>
+<p>If your test bench is showing up in the implementation tab, as shown above,&nbsp;<strong>right click</strong> on the test bench and choose&nbsp;<strong>Source Properties...</strong>&nbsp;</p>
+<p><img src="{{media url="wysiwyg/test-bench/test_bench_sim.png"}}" alt="Test Bench Properties" /></p>
+<p>Change the&nbsp;<strong>View Association</strong> to&nbsp;<strong>Simulation</strong>.</p>
+<p>Back in ISE, click on the&nbsp;<strong>Simulation&nbsp;</strong>tab.</p>
+<p><img src="{{media url="wysiwyg/test-bench/test_bench_sim_window.png"}}" alt="ISE Simulation Tab" /></p>
+<p>Notice the&nbsp;<strong>Simulate Behavioral Model</strong> option now. This is how you launch the simulation. Make sure that&nbsp;<strong>basic_and_tb</strong> is selected and double click&nbsp;<strong>Simulate Behavioral Model</strong>.</p>
+<p>That will launch&nbsp;<strong>ISim</strong>.</p>
+<p>It will show your test bench code and show where it hit&nbsp;<strong>$finish;</strong>. Go ahead and click on the tab that says&nbsp;<strong>Default.wcfg</strong>.</p>
+<p><img src="{{media url="wysiwyg//test-bench/test_bench_isim.resized.png"}}" alt="ISim" /></p>
+<p>Click the magnifying glass that looks like it has an X in it. That will fit the simulation to the display. You should then see the following.</p>
+<p><img src="{{media url="wysiwyg/test-bench/test_bench_results.png"}}" alt="Simulation Waveform" /></p>
+<p>Notice how&nbsp;<strong>a&nbsp;</strong>and&nbsp;<strong>b</strong> change. Their values match the ones in our test bench and you can see that they change every 20 time units (ns in this case).</p>
+<p>The power of the test bench is now you can look at&nbsp;<strong>out</strong>. If you compare&nbsp;<strong>out</strong> with the corresponding&nbsp;<strong>a&nbsp;</strong>and&nbsp;<strong>b</strong> inputs, you will notice that the module is infact&nbsp;<strong>anding</strong>&nbsp;<strong>a</strong> and&nbsp;<strong>b</strong> together (1111&nbsp;<strong>and&nbsp;</strong>0101 = 0101!).</p>
+<h3>Sequential Test Benches</h3>
+<p>The previous example is a great way to get you feet wet with test benches, but the circuit we tested didn't have any sequential logic in it. How do you go about testing a circuit that requires a clock signal?</p>
+<p>To show to do this, we will be testing the pwm module from the {{widget type="cms/widget_page_link" template="cms/widget/link/link_inline.phtml" page_id="27"}}.&nbsp;</p>
+<pre class="brush:verilog">module pwm #(parameter CTR_LEN = 8) (
+    input clk,
+    input rst,
+    input [CTR_LEN - 1 : 0] compare,
+    output pwm
+  );
+  
+  reg pwm_d, pwm_q;
+  reg [CTR_LEN - 1: 0] ctr_d, ctr_q;
+  
+  assign pwm = pwm_q;
+  
+  always @(*) begin
+    ctr_d = ctr_q + 1'b1;
+    
+    if (compare &gt; ctr_q)
+    pwm_d = 1'b1;
+    else
+    pwm_d = 1'b0;
+  end
+  
+  always @(posedge clk) begin
+    if (rst) begin
+      ctr_q &lt;= 1'b0;
+    end else begin
+      ctr_q &lt;= ctr_d;
+    end
+    
+    pwm_q &lt;= pwm_d;
+  end
+  
+endmodule</pre>
+<p>To test this we again will need to write a test bench. An example of what that test bench could look like is shown below.</p>
+<pre class="brush:verilog">module pwm_tb ();
+  
+  reg clk, rst;
+  reg [7:0] compare;
+  wire pwm;
+  
+  pwm #(.CTR_LEN(8)) DUT (
+    .clk(clk),
+    .rst(rst),
+    .compare(compare),
+    .pwm(pwm)
+  );
+  
+  initial begin
+    clk = 1'b0;
+    rst = 1'b1;
+    repeat(4) #10 clk = ~clk;
+    rst = 1'b0;
+    forever #10 clk = ~clk; // generate a clock
+  end
+  
+  initial begin
+    compare = 8'd0; // initial value
+    @(negedge rst); // wait for reset
+    compare = 8'd128;
+    repeat(256) @(posedge clk);
+    compare = 8'd30;
+    repeat(256) @(posedge clk);
+    $finish;
+  end
+  
+endmodule</pre>
+<p>Again notice there are no inputs or outputs of our test bench.</p>
+<p>In this test bench we have to have two initial blocks.</p>
+<pre class="brush:verilog;first-line:14">  initial begin
+    clk = 1'b0;
+    rst = 1'b1;
+    repeat(4) #10 clk = ~clk;
+    rst = 1'b0;
+    forever #10 clk = ~clk; // generate a clock
+  end</pre>
+<p>This first block generates the clock and reset signals. You will use basically this exact same initial block for any test bench that is testing a sequential circuit.&nbsp;</p>
+<p>The&nbsp;<strong>clk</strong> and&nbsp;<strong>rst</strong> signals are initialized to 0 and 1 respectively.&nbsp;</p>
+<p>The next line uses the&nbsp;<strong>repeat</strong> statement.</p>
+<pre class="brush:verilog;first-line:17">        repeat(4) #10 clk = ~clk;
+</pre>
+<p>This is used to toggle the clock four times with 10 units of time between each toggle.</p>
+<p>After the clock is toggled a bit,&nbsp;<strong>rst</strong> is brought low to allow the circuit to resume normal operation.&nbsp;</p>
+<p>It is very important to always reset your circuit before expecting any meaningful output. Flip-flops do not have a default value and will output&nbsp;<strong>x</strong> in simulations when they are not reset properly.</p>
+<pre class="brush:verilog;first-line:19">        forever #10 clk = ~clk; // generate a clock</pre>
+<p>The last line of this initial block will generate a clock signal forever! The&nbsp;<strong>forever</strong> keyword is used to create a loop that lasts, you guessed it, forever.</p>
+<p>The second initial block is where we do the actual testing.</p>
+<pre class="brush:verilog;first-line:22">  initial begin
+    compare = 8'd0; // initial value
+    @(negedge rst); // wait for reset
+    compare = 8'd128;
+    repeat(256) @(posedge clk);
+    compare = 8'd30;
+    repeat(256) @(posedge clk);
+    $finish;
+  end</pre>
+<p>The first part of this block waits for&nbsp;<strong>rst</strong> to fall. This is accomplished with the&nbsp;<strong>@(negedge signal)</strong>; syntax. You can use&nbsp;<strong>negedge</strong> or&nbsp;<strong>posedge</strong> to make your initial block wait for the corresponding edge of that signal.</p>
+<p>The signal&nbsp;<strong>compare</strong> is then set to 128 to make sure we get a 50% duty cycle from the&nbsp;<strong>pwm</strong> module. Since each cycle of the module takes 256 clock cycles (because we set&nbsp;<strong>CTR_LEN</strong> = 8), we need to wait for 256 positive edges of the clock.</p>
+<p>After we wait long enough we can change&nbsp;<strong>compare</strong> to a new value to test the&nbsp;<strong>pwm</strong> module under a different case.</p>
+<p>In this example we are only testing two cases, but in most test benches you should try more, especially the edge cases.</p>
+<p>If you now add these two files to your project and run the simulation you should see the following.</p>
+<p><img src="{{media url="wysiwyg/test-bench/test_bench_sync_new.png"}}" alt="New Simulation" /></p>
+<p>Now you may notice that the simulation stopped after 1us. This is the default value in ISim. To change it set the new value in the toolbar like this.</p>
+<p><img src="{{media url="wysiwyg/test-bench/test_bench_toolbar.png"}}" alt="ISim Toolbar" /></p>
+<p>Set it to 100us just to be safe. Since we have the&nbsp;<strong>$finish;</strong> statement in our test bench it doesn't hurt to set it longer than we need because it will end when it hits that line.</p>
+<p>If you now click the arrow with the hour glass it will run the rest of the simulation.&nbsp;</p>
+<p>Before looking at the signal we should show the&nbsp;<strong>ctr_q</strong> signal from the&nbsp;<strong>pwm</strong> module. To do this take a look af the signals shown on the left of the display.</p>
+<p><img src="{{media url="wysiwyg/test-bench/test_bench_addsig.png"}}" alt="ctr_q signal" /></p>
+<p>Expand the pwm_tb and select DUT. You can then right click&nbsp;<strong>ctr_q[7:0]</strong> and click&nbsp;<strong>Add to Wave Window</strong>.</p>
+<p>To get the waveform updated you need to click the icon in the toolbar that is a blue box with a white arrow pointing to the left (left most icon shown two pictures above). This will rerun the simulation from the beginning.</p>
+<p><img src="{{media url="wysiwyg/test-bench/test_bench_final.png"}}" alt="Final Simulation" /></p>
+<p>Here is what the final simulation should look like. You can see the pulses are exactly as we expected them to be. If you zoom in to any point you will be able to see the value of <strong>ctr_q</strong> and the rising and falling edges of&nbsp;<strong>clk</strong>.</p>
+<p>Hopefully this gives you a good starting point for writing your own test benches. Test benches are incredibly important for verifying that your modules are written correctly and everything is working as it should.</p>

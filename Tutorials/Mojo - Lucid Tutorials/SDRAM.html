@@ -1,0 +1,875 @@
+<p>This tutorial will cover how <b>DRAM</b> (<b>D</b>ynamic <b>R</b>andom <b>A</b>ccess <b>M</b>emory), or more specifically <b>SDRAM</b> (<b>S</b>ynchronized <b>DRAM</b>), works and how you can use it in your projects. We will be using the <a herf="https://embeddedmicro.com/products/sdram-shield.html">SDRAM Shield</a>.</p>
+<h3>What is RAM?</h3>
+<p>It is first important to understand what <b>RAM</b> is in general before diving into a specific type. RAM is simply a large block of memory that you can access more or less at random very quickly. It provides temporary storage for your design for things like images, video, or sampled data. In some applications it can even be used to store the instructions and data for a processor.</p>
+<p>Notice the word <b>temporary</b> I used. This is because RAM is a volatile form of memory. That means without power, the contents of the memory will be lost.</p>
+<p>RAM is organized into banks, rows, and columns. I like to think of RAM as a set of notebooks where each notebook is a <i>bank</i>, each page is a <i>row</i>, and each line is a <i>column</i>. Each bank, or notebook, can be accessed independently of the other banks. Each bank is comprised of many rows and each row has many columns. To access a specific piece of data you must specify all three pieces of information, the bank, row, and column.</p>
+<p>The actual protocol required to access data depends on the type of RAM being used. However, all RAM breaks our a very similar interface. You generally have an address input, which specifies the row and column, a bank select input, which specifies the bank, a data input/output, which is used for reading and writing data, and a few control signals.</p>
+<h3>How DRAM works</h3>
+<p>So now you know that any type of RAM is used to store large amount of data, how does it actually store this data?</p>
+<p>The basic storage element behind DRAM is the capacitor. If you aren't familiar with what a capacitor is, check out our {{widget type="cms/widget_page_link" template="cms/widget/link/link_inline.phtml" page_id="11"}}. Just as a basic refresher, a capacitor is a device that is able to store a charge. You can think of them much like a balloon. Just as you can fill a balloon with some air, you can fill a capacitor with some charge.</p>
+<p>The basic cell in DRAM looks like the following.</p>
+<p><img src="{{media url="wysiwyg/sdram/sdram_cell.png"}}" alt="DRAM Cell" /></p>
+<p>There is simply a capacitor that stores a charge, and a transistor that allows charge to either be put into the capacitor or taken out.</p>
+<p>These cells are arranged into a large 2D array of <i>rows</i> and <i>columns</i>. These are the same rows and columns from before.</p>
+<p>When you write data to DRAM, charge is placed on capacitors that should have a value of 1, but no charge is placed on capacitors that have a value of 0. </p>
+<p>When you read data from DRAM, the charge on the capacitor is measured using a circuit called a <b>sense amplifier</b>. If the sense amplifier detected charge on the capacitor then it outputs a 1, otherwise it assumes the cell was a 0.</p>
+<p>There are a two main problems to the fundamental design of DRAM. First, to read the charge from the capacitor, the charge must be drained. This causes all reads to be destructive. Once you read a piece of data from DRAM, the value is no longer being stored in the memory array. To deal with this, the data <b>must</b> be written back into the array when you are done with it. This is called <b>precharging</b>. </p>
+<p>To make the interface to DRAM a bit more efficient, an entire row is read into a buffer in the DRAM. The process of reading a row into that buffer is referred to as <b>opening</b> or <b>activating </b>the row. Once a row is open, data can be read or written to any columns in that row without having to open it again.</p>
+<p>However, only one row per bank can be open at a time. To read from a different row in the same bank, you must first <b>precharge</b> the current row, then <b>open</b> the new row.</p>
+<p>The second fundamental flaw of DRAM, and the reason it is called <b>dynamic</b> RAM, is that capacitors <i>leak</i> charge. That means that once a charge is stored on a capacitor, it will start losing that charge. This happens either through the transistor connected to it, or through the capacitor itself. What this means for your data is that, if neglected, the values stored will be lost.</p>
+<p>The fix to this problem is to periodically <b>refresh</b> each row. A refresh consists of simply reading a row then writing it back into the array. This process ensures that the capacitors retain their charge. </p>
+<p>The amount of time a row can go between refreshes depends on the DRAM. However, the SDRAM chip on the <a href="//development-boards/sdram-shield.html" target="_blank">SDRAM Shield</a>, must be refreshed every <b>64ms</b>.</p>
+<p>Generally, SDRAM will be able to perform the refresh operation for you. However, you still must tell it when to refresh.</p>
+<h3>DRAM vs SDRAM</h3>
+<p>The difference between these two types of RAM is that SDRAM is <b>synchronous</b> and DRAM is not. All this means is that the SDRAM uses a clock while DRAM does not. The benefits to SDRAM are that inputs and outputs are synchronized to whatever it is connected to, in our case the FPGA, as well as some speed benefits due to pipelining. </p>
+<p>SDRAM is much more common than plain DRAM. </p>
+<p>It is also worth noting that <b>DDR</b> (<b>D</b>ouble <b>D</b>ata <b>R</b>ate) RAM, usually heard in the context of computers, is a form of SDRAM.</p>
+<h3>DRAM vs SRAM</h3>
+<p>The difference between DRAM and SRAM is a bit more interesting. SRAM operates fundamentally differently than DRAM. It doesn't store data on capacitors, but instead uses two inverters back to back.</p>
+<p><img src="{{media url="wysiwyg/sdram/sram_cell.png"}}" alt="SRAM Cell" /></p>
+<p>This solves the two problems discussed earlier about destructive reads and forgetting the value. However, this comes at a price, literally. SRAM is much more expensive than DRAM due to the fact that the technology is much less dense. Each cell in SRAM is much larger than each cell of DRAM, meaning you can't pack nearly as many into the same area. </p>
+<p>SRAM is, however, faster and uses less power than DRAM. Because of this, it is still used frequently in digital systems for things like caches. Modern CPUs have something like 8-16MB of very fast SRAM cache, but the computer can have 1000x that much (8+GB) DRAM.</p>
+<h2>The Controller</h2>
+<p>Create a new project based on the <i>Base Project</i>. We now need to add the SDRAM controller to our project. In the <i>Component Selector</i>, select <i>Controllers/SDRAM Controller</i>. We also need the pin definitions for the SDRAM Shield, so also check off <i>Constraints/SDRAM Shield</i>. Add these to your project.</p>
+<p>Open up the <i>sdram.luc</i> file and take a look at it. It can be helpful to have the <a href="/media/wysiwyg/sdram-shield/256Mb_sdr.pdf" target="_blank">datasheet</a> for the SDRAM chip open.</p>
+<pre class="brush:lucid;first-line:35;class-name:scroll">
+// Interface to the SDRAM chip
+global Sdram {
+  // Outputs
+  struct out {
+    clk,           // clock
+    cle,           // clock enable
+    cs,            // chip select
+    cas,           // column address strobe
+    ras,           // row address strobe
+    we,            // write enable
+    dqm,           // data tri-state mask
+    bank [2],      // bank address
+    addr [13]      // column/row address
+  }
+  
+  // Inouts
+  struct inOut {
+    dq [8]         // data bus
+  }
+}
+
+module sdram (
+    input clk,  // clock
+    input rst,  // reset
+    
+    // SDRAM interface
+    inout&lt;Sdram.inOut&gt; sdramInOut,
+    output&lt;Sdram.out&gt; sdramOut,
+    
+    // Memory interface
+    input&lt;Memory.master&gt; memIn,
+    output&lt;Memory.slave&gt; memOut
+  ) {
+  
+  // Commands for the SDRAM
+  //const CMD_UNSELECTED    = 4b1000; // Unused
+  const CMD_NOP           = 4b0111;   // No operation
+  const CMD_ACTIVE        = 4b0011;   // Activate a row
+  const CMD_READ          = 4b0101;   // Start a read
+  const CMD_WRITE         = 4b0100;   // Start a write
+  //const CMD_TERMINATE     = 4b0110; // Unused
+  const CMD_PRECHARGE     = 4b0010;   // Precharge a row
+  const CMD_REFRESH       = 4b0001;   // Perform a refresh
+  const CMD_LOAD_MODE_REG = 4b0000;   // Load mode register
+  
+  .clk(clk) {
+    .rst(rst) {
+      fsm state = {
+        INIT,            // Initial state
+        WAIT,            // Generic wait state
+        PRECHARGE_INIT,  // Start initial precharge
+        REFRESH_INIT_1,  // Perform first refresh
+        REFRESH_INIT_2,  // Perform second refresh
+        LOAD_MODE_REG,   // Load mode register
+        IDLE,            // Main idle state
+        REFRESH,         // Perform a refresh
+        ACTIVATE,        // Activate a row
+        READ,            // Start a read
+        READ_RES,        // Read results
+        WRITE,           // Perform a write
+        PRECHARE         // Precharge bank(s)
+      }; 
+    }
+    
+    // DFF to store the next state to go into after WAIT state
+    dff next_state[state.WIDTH];
+    
+    // IO buffer flip-flops are important for timing
+    // The #IOB parameter tells the tools to pack the
+    // dff into the IO buffer which is important for
+    // consistant timing.
+    dff cle (#IOB(1));       // clock enable
+    dff dqm (#IOB(1));       // data mask
+    dff cmd [4] (#IOB(1));   // command (we, cas, ras, cs)
+    dff bank [2] (#IOB(1));  // bank select
+    dff a [13] (#IOB(1));    // address
+    dff dq [8] (#IOB(1));    // data output
+    dff dqi [8] (#IOB(1));   // data input
+    dff dq_en;               // data bus output enable
+    
+    dff addr [23];           // operation address
+    dff data [32];           // operation data
+    dff rw_op;               // operation read/write flag
+    
+    dff out_valid;           // output valid
+    
+    dff delay_ctr [16];      // delay counter
+    dff byte_ctr [2];        // byte counter
+    
+    dff refresh_ctr [10];    // refresh counter
+    dff refresh_flag;        // refresh counter expired flag
+    
+    dff ready;               // controller ready flag
+    dff saved_rw;            // saved command read/write flag
+    dff saved_addr [23];     // saved command address
+    dff saved_data [32];     // saved command data
+    
+    dff row_open [4];        // row in bank open flags
+    dff row_addr [4][13];    // open row addresses
+    
+    dff precharge_bank [3];  // bank(s) to precharge
+  }
+  
+  // xil_XXX modules aren't real modules but rather
+  // hardware primitives inside the FPGA.
+  
+  // The OODR2 is used to output the FPGA clock to
+  // an output pin because a clock can't be directly
+  // routed as an output.
+  xil_ODDR2 oddr (
+    #DDR_ALIGNMENT("NONE"),
+    #INIT(0),
+    #SRTYPE("SYNC")
+  );
+  
+  // The IODELAY2 is used to delay the clock a bit
+  // in order to align the data with the clock edge.
+  // These settings assume a 100MHz clock and the
+  // SDRAM Shield being stacked next to the Mojo.
+  xil_IODELAY2 iodelay (
+    #IDELAY_VALUE(0),
+    #IDELAY_MODE("NORMAL"),
+    #ODELAY_VALUE(100),
+    #IDELAY_TYPE("FIXED"),
+    #DELAY_SRC("ODATAIN"),
+    #DATA_RATE("SDR")
+  );
+  
+  // Connections
+  always {
+    // Connect the dffs to the outputs
+    sdramOut.cle = cle.q;
+    sdramOut.cs = cmd.q[3];
+    sdramOut.ras = cmd.q[2];
+    sdramOut.cas = cmd.q[1];
+    sdramOut.we = cmd.q[0];
+    sdramOut.dqm = dqm.q;
+    sdramOut.bank = bank.q;
+    sdramOut.addr = a.q;
+    sdramOut.clk = iodelay.DOUT;    // delayed clock
+    sdramInOut.enable.dq = dq_en.q;
+    sdramInOut.write.dq = dq.q;
+    
+    memOut.data = data.q;
+    memOut.busy = !ready.q;
+    memOut.valid = out_valid.q;
+    
+    // Connections for the IODELAY2
+    iodelay.ODATAIN = oddr.Q; // use the ODDR2 output as the source
+    iodelay.IDATAIN = 0;
+    iodelay.T = 0;
+    iodelay.CAL = 0;
+    iodelay.IOCLK0 = 0;
+    iodelay.IOCLK1 = 0;
+    iodelay.CLK = 0;
+    iodelay.INC = 0;
+    iodelay.CE = 0;
+    iodelay.RST = 0;
+    
+    // Connections for the ODDR2
+    oddr.C0 = clk;
+    oddr.C1 = ~clk;
+    oddr.CE = 1;
+    oddr.D0 = 0; // using 0 for D0 and 1 for D1 inverts the clock
+    oddr.D1 = 1; // because D0 is output on the rising edge of C0
+    oddr.R = 0;
+    oddr.S = 0;
+  }
+  
+  // Logic
+  always {
+    // default values
+    dqi.d = sdramInOut.read.dq;
+    dq_en.d = 0;
+    cmd.d = CMD_NOP;
+    dqm.d = 0;
+    bank.d = 0;
+    a.d = 0;
+    out_valid.d = 0;
+    byte_ctr.d = 0;
+    
+    // Continuously increment the refresh counter
+    // If it reaches 750, 7.5us has elapsed and a refresh needs to happen
+    // The maximum delay is 7.813us
+    refresh_ctr.d = refresh_ctr.q + 1;
+    if (refresh_ctr.q > 750) {
+      refresh_ctr.d = 0;  // reset the timer
+      refresh_flag.d = 1; // set the refresh flag
+    }
+    
+    // If we are ready for a new command and we get one...
+    if (ready.q &amp;&amp; memIn.valid) {
+      saved_rw.d = memIn.write;  // save the type
+      saved_data.d = memIn.data; // save the data
+      saved_addr.d = memIn.addr; // save the address
+      ready.d = 0;               // don't accept new commands
+    }
+    
+    case (state.q) {
+      ///// INTIALIZE /////
+      state.INIT:
+        ready.d = 0;                          // not ready while initializing
+        row_open.d = 0;                       // no rows open yet 
+        cle.d = 1;                            // enable the clock
+        state.d = state.WAIT;                 // need to wait
+        delay_ctr.d = 10100;                  // for 101us (100us minimum)
+        next_state.d = state.PRECHARGE_INIT;  // move to PRECHARGE_INIT after
+      
+      state.WAIT:
+        delay_ctr.d = delay_ctr.q - 1;        // decrement counter
+        if (delay_ctr.q == 0) {               // if 0
+          state.d = next_state.q;             // go to the next state
+          if (next_state.q == state.WRITE) {  // if it's WRITE
+            dq_en.d = 1;                      // enable the data bus
+            dq.d = data.q[7:0];               // and output the first byte
+          }
+        }
+      
+      state.PRECHARGE_INIT:
+        cmd.d = CMD_PRECHARGE;                // need to precharge all banks
+        a.d[10] = 1;                          // all banks
+        state.d = state.WAIT;                 // need to wait after
+        next_state.d = state.REFRESH_INIT_1;  // move to REFRESH_INIT_1 after
+        delay_ctr.d = 0;                      // delay 20ns (min 15ns)
+      
+      state.REFRESH_INIT_1:
+        cmd.d = CMD_REFRESH;                  // need to perform two refreshes
+        state.d = state.WAIT;                 // need to wait after a refresh
+        next_state.d = state.REFRESH_INIT_2;  // move to REFRESH_INIT_2 after
+        delay_ctr.d = 7;                      // delay 90ns (min 66ns)
+      
+      state.REFRESH_INIT_2:
+        cmd.d = CMD_REFRESH;                  // need to perform two refreshes
+        state.d = state.WAIT;                 // need to wait after a refresh
+        next_state.d = state.LOAD_MODE_REG;   // move to LOAD_MODE_REG after
+        delay_ctr.d = 7;                      // delay 90ns (min 66ns)
+      
+      state.LOAD_MODE_REG:
+        cmd.d = CMD_LOAD_MODE_REG;            // load the mode register
+        
+        // Reserved, Burst Access, Standard Op, CAS = 2, Sequential, Burst = 4
+        a.d = c{3b000, 1b0, 2b00, 3b010, 1b0, 3b010};
+        
+        state.d = state.WAIT;                 // need to wait 
+        next_state.d = state.IDLE;            // move to IDLE after
+        delay_ctr.d = 1;                      // delay 30ns (min 2 clock cycles)
+        refresh_flag.d = 0;                   // don't need refresh
+        refresh_ctr.d = 1;                    // reset the counter
+        ready.d = 1;                          // we can now accept commands
+      
+      ///// IDLE STATE /////
+      state.IDLE:
+        if (refresh_flag.q) {                 // if we need to perform a refresh
+          state.d = state.PRECHARE;           // first precharge everything
+          next_state.d = state.REFRESH;       // then refresh
+          precharge_bank.d = 3b100;           // precharge all banks
+          refresh_flag.d = 0;                 // refresh was taken care of
+        } else if (!ready.q) {                // if we have a waiting command
+          ready.d = 1;                        // we can accept another now
+          rw_op.d = saved_rw.q;               // save the command type
+          addr.d = saved_addr.q;              // save the address
+          
+          if (saved_rw.q)                     // if write
+            data.d = saved_data.q;            // save the data
+          
+          // if there is already an open row
+          if (row_open.q[saved_addr.q[9:8]]) {
+            // if the row is the one we want
+            if (row_addr.q[saved_addr.q[9:8]] == saved_addr.q[22:10]) {
+              // the row is already open so just perform the operation
+              if (saved_rw.q)
+                state.d = state.WRITE;
+              else
+                state.d = state.READ;
+            } else {                          // need to open the row
+              state.d = state.PRECHARE;       // first need to close current one
+              precharge_bank.d = c{1b0, saved_addr.q[9:8]}; // row to close
+              next_state.d = state.ACTIVATE;  // then open the correct one
+            }
+          } else {                            // nothing is already open
+            state.d = state.ACTIVATE;         // so just open the row
+          }
+        }
+      
+      ///// REFRESH /////
+      state.REFRESH:
+        cmd.d = CMD_REFRESH;                  // send refresh command
+        state.d = state.WAIT;                 // need to wait
+        next_state.d = state.IDLE;            // go back to IDLE after
+        delay_ctr.d = 6;                      // wait 8 cycles, 80ns (min 66ns)
+        
+      ///// ACTIVATE /////
+      state.ACTIVATE:
+        cmd.d = CMD_ACTIVE;                   // activate command
+        a.d = addr.q[22:10];                  // row address
+        bank.d = addr.q[9:8];                 // bank select
+        delay_ctr.d = 0;                      // delay 20ns (15ns min)
+        state.d = state.WAIT;                 // need to wait
+        
+        // set the next state based on the command
+        next_state.d = rw_op.q ? state.WRITE : state.READ;
+        
+        row_open.d[addr.q[9:8]] = 1;          // row is now open 
+        row_addr.d[addr.q[9:8]] = addr.q[22:10]; // address of row
+        
+      ///// READ /////
+      state.READ:
+        cmd.d = CMD_READ;                     // read command
+        a.d = c{2b0, 1b0, addr.q[7:0], 2b0};  // address of column
+        bank.d = addr.q[9:8];                 // bank select
+        state.d = state.WAIT;                 // need to wait
+        next_state.d = state.READ_RES;        // go to READ_RES after
+        delay_ctr.d = 2;                      // wait 3 cycles
+        
+      state.READ_RES:
+        byte_ctr.d = byte_ctr.q + 1;          // count 4 bytes
+        data.d = c{dqi.q, data.q[31:8]};      // shift in each byte
+        if (byte_ctr.q == 3) {                // if we read all 4 bytes
+          out_valid.d = 1;                    // output is valid
+          state.d = state.IDLE;               // return to IDLE
+        }
+        
+      ///// WRITE /////
+      state.WRITE:
+        byte_ctr.d = byte_ctr.q + 1;          // count 4 bytes
+        
+        if (byte_ctr.q == 0)                  // first byte is write command
+          cmd.d = CMD_WRITE;                  // send command
+        
+        dq.d = data.q[7:0];                   // output the data
+        data.d = data.q >> 8;                 // shift data
+        dq_en.d = 1;                          // enable data bus output
+        a.d = c{2b0, 1b0, addr.q[7:0], 2b0};  // column address
+        bank.d = addr.q[9:8];                 // bank select
+        
+        if (byte_ctr.q == 3)                  // if we wrote all 4 bytes
+          state.d = state.IDLE;               // return to IDLE
+        
+      ///// PRECHARGE /////
+      state.PRECHARE:
+        cmd.d = CMD_PRECHARGE;                // precharge command
+        a.d[10] = precharge_bank.q[2];        // all banks flag
+        bank.d = precharge_bank.q[1:0];       // single bank select
+        state.d = state.WAIT;                 // need to wait
+        delay_ctr.d = 0;                      // delay 20ns (15ns min)
+        
+        if (precharge_bank.q[2])              // if all banks flag
+          row_open.d = 0;                     // they are all closed
+        else                                  // otherwise
+          row_open.d[precharge_bank.q[1:0]] = 0; // only selected was closed
+        
+      default:                                // shouldn't be here
+        state.d = state.INIT;                 // restart the FSM
+    }
+  }
+}
+</pre>
+<p>This module uses some new advanced features that we haven't covered yet so let's get right into it.</p>
+<h3>Structs</h3>
+<p>The most obvious new part to this module is the the use of <i>structs</i>. In this case, two structs are declared in the global namespace <i>Sdram</i>.</p>
+<pre class="brush:lucid;first-line:35">
+// Interface to the SDRAM chip
+global Sdram {
+  // Outputs
+  struct out {
+    clk,           // clock
+    cle,           // clock enable
+    cs,            // chip select
+    cas,           // column address strobe
+    ras,           // row address strobe
+    we,            // write enable
+    dqm,           // data tri-state mask
+    bank [2],      // bank address
+    addr [13]      // column/row address
+  }
+  
+  // Inouts
+  struct inOut {
+    dq [8]         // data bus
+  }
+}
+</pre>
+<p>You can declare structs inside your module, but they are then local to your module and can only be used internally (not in port definitions).</p>
+<p>A struct definition consists of the <i>struct</i> keyword, followed by the name of the struct, followed by the list of the struct's members. A member declaration consists of a name, an optional struct type, and an optional array size.</p>
+<p>Take a look at the following example.</p>
+<pre class="brush:lucid">
+struct color {
+  red[8],
+  green[8],
+  blue[8]
+}
+struct display {
+  x[12],
+  y[12],
+  pixel&lt;color&gt;
+}
+</pre>
+<p>In this example we have two structs, <i>color</i> and <i>display</i>. The <i>color</i> struct has three members, <i>red</i>, <i>green</i>, and <i>blue</i>, each an 8bit array.</p>
+<p>The <i>display</i> struct is a bit more complex. The first two elements, <i>x</i> and <i>y</i> are 12bit arrays, but the third, <i>pixel</i> is itself a struct of type <i>color</i>.</p>
+<p>The <i>&lt;name&gt;</i> notation is used to specify the struct type. This can be used with struct members, <i>input</i>, <i>output</i>, <i>inout</i>, <i>sig</i>, and <i>dff</i> types.</p>
+<h3>Accessing Struct Members</h3>
+<p>Now that we know how to declare a struct, we need to be able to access its members. Let's look at another example.</p>
+<pre class="brush:lucid">
+struct foo {
+  a,
+  b[4],
+  c[8]
+}
+
+.clk(clk) {
+  dff&lt;foo&gt; bar;
+  dff&lt;foo&gt; cat[2];
+}
+
+sig&lt;foo&gt; dog;
+
+always {
+  bar.d.b = bar.q.c[3:0]; // d/q must be selected first
+  dog = bar.q;            // structs can be assigned directly to others of the same type
+  cat.d[0] = dog;         // need to select a single element before accessing the struct
+  cat.d[1].a = bar.q.a; 
+}
+</pre>
+<p>The members of a struct are accessed the same way as the d/q signals of a <i>dff</i> or the signals of a module instance.</p>
+<p>The SDRAM controller uses two other structs defined in <i>memory_bus.luc</i>. These are split into a different file as they may be used by other modules besides the SDRAM controller.</p>
+<h3>The Interface</h3>
+<p>Take a look at the ports of the SDRAM controller.</p>
+<pre class="brush:lucid;first-line:56">
+module sdram (
+    input clk,  // clock
+    input rst,  // reset
+    
+    // SDRAM interface
+    inout&lt;Sdram.inOut&gt; sdramInOut,
+    output&lt;Sdram.out&gt; sdramOut,
+    
+    // Memory interface
+    input&lt;Memory.master&gt; memIn,
+    output&lt;Memory.slave&gt; memOut
+  ) {
+</pre>
+<p>We have the canonical clock and reset inputs. We then have a bunch of IO condensed into 4 lines by using structs. The connection to the SDRAM chip consists of an output and an inout. The interface from the controller to the rest of the FPGA is broken into an input and an output. Take a look at the struct definitions for details of their contents.</p>
+<h3>Commands</h3>
+<p>The SDRAM chip accepts a series of commands that we define as constants for easier use.</p>
+<pre class="brush:lucid;first-line:69">
+  // Commands for the SDRAM
+  //const CMD_UNSELECTED    = 4b1000; // Unused
+  const CMD_NOP           = 4b0111;   // No operation
+  const CMD_ACTIVE        = 4b0011;   // Activate a row
+  const CMD_READ          = 4b0101;   // Start a read
+  const CMD_WRITE         = 4b0100;   // Start a write
+  //const CMD_TERMINATE     = 4b0110; // Unused
+  const CMD_PRECHARGE     = 4b0010;   // Precharge a row
+  const CMD_REFRESH       = 4b0001;   // Perform a refresh
+  const CMD_LOAD_MODE_REG = 4b0000;   // Load mode register
+</pre>
+<p>These commands connect to the <i>CS</i>, <i>RAS</i>, <i>CAS</i>, and <i>WE</i> pins on the SDRAM. See page 31 of the <a href="/media/wysiwyg/sdram-shield/256Mb_sdr.pdf" target="_blank">datasheet</a> if you want to know more.</p>
+<h2>The FSM</h2>
+<p>The entire controller is based around a single FSM.</p>
+<pre class="brush:lucid;first-line:80">
+  .clk(clk) {
+    .rst(rst) {
+      fsm state = {
+        INIT,            // Initial state
+        WAIT,            // Generic wait state
+        PRECHARGE_INIT,  // Start initial precharge
+        REFRESH_INIT_1,  // Perform first refresh
+        REFRESH_INIT_2,  // Perform second refresh
+        LOAD_MODE_REG,   // Load mode register
+        IDLE,            // Main idle state
+        REFRESH,         // Perform a refresh
+        ACTIVATE,        // Activate a row
+        READ,            // Start a read
+        READ_RES,        // Read results
+        WRITE,           // Perform a write
+        PRECHARE         // Precharge bank(s)
+      }; 
+    }
+</pre>
+<p>The relations of these states can be summed up in the state diagram shown below. The <i>WAIT</i> state wasn't shown for clarity.</p>
+<p><img src="{{media url="wysiwyg/sdram/sdram_controller.png"}}" alt="SDRAM Controller FSM" /></p>
+<p>When the board is powered on (or reset) the FSM starts in the <i>INIT</i> state. SDRAM requires a bit of initialization before you can read and write to it. This is also covered in the <a href="/media/wysiwyg/sdram-shield/256Mb_sdr.pdf" target="_blank">datasheet</a> (page 42) for those curious. </p>
+<p>After the board is initialized, it sits in the <i>IDLE</i> state until one of two things happen, either it's time to perform a refresh or there is a pending operation.</p>
+<p>First, let's talk about the refresh. To manage the refreshing, there is a timer that tells the controller to send another refresh operation. The SDRAM requires 8,192 refresh commands to be sent every 64ms. That means you can either send a refresh command every 7.813&micro;s or all 8,192 commands in a batch every 64ms. To provide a more uniform interface, this controller sends the refresh commands evenly spaced. This limits the maximum amount of time the controller will be busy doing refreshes. In some applications where you need very fast burst speeds, but have some known down time, performing burst refreshing can be better.</p>
+<p>When a read or write command is pending, the controller first checks to see if the row is open. If the requested row is already open, life is great, it simply reads or writes to the row. If the row isn't open then it first opens the row before performing the operation. The worst case is if there is already another row open. In this case the other row must be precharged, before the controller can open the new row and perform the operation.</p>
+<p>Each of these operations has some number of cycles the SDRAM requires to complete (the reason for the <i>WAIT</i> state). These sometimes vary with the clock frequency (in other words, they have a set amount of real time). This controller assumes a clock rate of 100MHz. This is important for other reasons as well that will be discussed a little later. All of these delays and timing specifications can be found in the <a href="/media/wysiwyg/sdram-shield/256Mb_sdr.pdf" target="_blank">datasheet</a> (many of them are on pages 27-28).</p>
+<p>This mostly sums up how the controller works. If you want an even deeper understanding, you need to take a look at the rest of the code in the controller as well as the SDRAM <a href="/media/wysiwyg/sdram-shield/256Mb_sdr.pdf" target="_blank">datasheet</a>.</p>
+<p>However, there is some advanced voodoo magic going on in the controller code that is worth mentioning.</p>
+<h3>Dealing with the Hardware</h3>
+<p>When you start interfacing with a relatively high speed external device, you start having to deal with FPGA specific details. There are two hardware related issues addressed in the controller. The first is that the FPGA can't route a clock signal directly to an output pin. This is because the clock and general logic of an FPGA share different routing resources and there isn't a way for the clock signal to move back into the general routing system. However, we can use an <i>ODDR2</i> primitive to compensate for this.</p>
+<pre class="brush:lucid;first-line:141">
+  // The OODR2 is used to output the FPGA clock to
+  // an output pin because a clock can't be directly
+  // routed as an output.
+  xil_ODDR2 oddr (
+    #DDR_ALIGNMENT("NONE"),
+    #INIT(0),
+    #SRTYPE("SYNC")
+  );
+</pre>
+<pre class="brush:lucid;first-line:194">
+    // Connections for the ODDR2
+    oddr.C0 = clk;
+    oddr.C1 = ~clk;
+    oddr.CE = 1;
+    oddr.D0 = 0; // using 0 for D0 and 1 for D1 inverts the clock
+    oddr.D1 = 1; // because D0 is output on the rising edge of C0
+    oddr.R = 0;
+    oddr.S = 0;
+</pre>
+<p>This is the instantiation of a <i>ODDR2</i> module. If you look the project files, you will notice there is no <i>xil_ODDR2.luc</i> file. This is because this isn't really a module, but rather an <b>FPGA primitive</b>. ODDR2 or <b>O</b>utput <b>D</b>ouble <b>D</b>ata <b>R</b>ate 2, is a primitive that is generally used to output data on both the rising and falling edges of the clock (hence, <i>double</i> data rate). However, in this case we are using the ODDR2 to simply output our clock signal. You can't output the clock signal directly due to how the FPGA is structured internally. So instead, you can use the ODDR with the data pins wired to 0 or 1.</p>
+<p>When <i>C0</i> has a rising edge, <i>D0</i> is output until <i>C1</i> has a rising edge. At that point <i>D1</i> is output. Notice that in our case <i>C1</i> is actually just the clock inverted. That means <i>D0</i> is output when the clock rises and <i>D1</i> is output when the clock falls. </p>
+<p>You may be thinking now "Ok... but if <i>D0</i> is output when the clock <i>rises</i>, shouldn't <i>D0</i> be 1 and <i>D1</i> be 0"? Very good my young padawan. That is exactly right <i>if</i> you wanted to output to be the same as the clock. However, we <b>don't</b> want this. We want the output clock to be our clock inverted!</p>
+<p>Why the *&amp;^$# would we want the clock to be inverted? Wouldn't that mean that the SDRAM would read it's inputs and change it's outputs on our falling edge? Oh wait... that's exactly what we want! We want this because that gives both devices half a clock cycle for their output to become stable before the other device. This all has to do with satisfying <i>setup</i> and <i>hold</i> times of both devices. If you don't know what the means, check out the {{widget type="cms/widget_page_link" template="cms/widget/link/link_inline.phtml" page_id="44"}}.</p>
+<p>Timing is the other hardware related issue we need to account for and we will use another FPGA primitive, the <i>IODELAY2</i>, to deal with it.</p>
+<pre class="brush:lucid;first-line:150">
+  // The IODELAY2 is used to delay the clock a bit
+  // in order to align the data with the clock edge.
+  // These settings assume a 100MHz clock and the
+  // SDRAM Shield being stacked next to the Mojo.
+  xil_IODELAY2 iodelay (
+    #IDELAY_VALUE(0),
+    #IDELAY_MODE("NORMAL"),
+    #ODELAY_VALUE(100),
+    #IDELAY_TYPE("FIXED"),
+    #DELAY_SRC("ODATAIN"),
+    #DATA_RATE("SDR")
+  );
+</pre>
+<pre class="brush:lucid;first-line:182">
+    // Connections for the IODELAY2
+    iodelay.ODATAIN = oddr.Q; // use the ODDR2 output as the source
+    iodelay.IDATAIN = 0;
+    iodelay.T = 0;
+    iodelay.CAL = 0;
+    iodelay.IOCLK0 = 0;
+    iodelay.IOCLK1 = 0;
+    iodelay.CLK = 0;
+    iodelay.INC = 0;
+    iodelay.CE = 0;
+    iodelay.RST = 0;
+</pre>
+<p>As you may have guessed from the name, the <i>IODELAY2</i> block provides a delay to inputs and outputs. In this case we are using it to delay the clock being output to the SDRAM. There are a lot of features of these primitives that aren't being used here. However if you want t check them out in their full glory, take a look at the <a href="http://www.xilinx.com/support/documentation/user_guides/ug381.pdf" target="_blank">UG381</a> document from Xilinx (ODDR2 starts on page 62 and IODELAY2 starts on page 74).</p>
+<p>We need the delay because simply inverting the clock doesn't quite ensure timing is met. We need to shift it a little more.</p>
+<p>The important values here are <i>DELAY_SRC</i> is set to make the <i>IODELAY2</i> delay an output and <i>ODELAY_VALUE</i> is how much we want to delay the signal.</p>
+<p>The actual amount of delay that is given per step of <i>ODELAY_VALUE</i> is a bit fuzzy and will actually vary over temperature and voltage in the Spartan 6 chip. However, with a 100MHz clock, using a delay of 100 (maximum is 255) ensures that the setup and hold times are being met. This delay was found empirically by running lots of tests checking for read/write errors.</p>
+<p>The last piece to the puzzle is making sure that the input and output registers are packed into <b>IOBs</b>, or <b>I</b>nput <b>O</b>utput <b>B</b>uffers.</p>
+<pre class="brush:lucid;first-line:102">
+    // IO buffer flip-flops are important for timing
+    // The #IOB parameter tells the tools to pack the
+    // dff into the IO buffer which is important for
+    // consistant timing.
+    dff cle (#IOB(1));       // clock enable
+    dff dqm (#IOB(1));       // data mask
+    dff cmd [4] (#IOB(1));   // command (we, cas, ras, cs)
+    dff bank [2] (#IOB(1));  // bank select
+    dff a [13] (#IOB(1));    // address
+    dff dq [8] (#IOB(1));    // data output
+    dff dqi [8] (#IOB(1));   // data input
+</pre>
+<p>The <i>dff</i> type has a parameter, <i>IOB</i>, that, when set to 1, will mark that flip-flop to be packed into an IOB.</p>
+<p>What the heck is an IOB? An IOB is simply a flip-flop that is embedded in the pin of the FPGA. They aren't in the typical FPGA fabric, but rather right at the inputs and outputs.</p>
+<p>We want to make sure these registers are packed into IOBs to ensure that there are no additional delays due to the signal needing to propagate through the FPGA.</p>
+<p>To make sure these registers are actually packed into the IOB, their output/input can't connect to anything other than the top level output/input. If you tried to read these signals in some other part of your design, the tools would be forced to pull the flip-flop out of the IOB, possibly messing up timing. This is why it is important that these signals go directly to the top level inputs/outputs.</p>
+<h3>Xilinx Primitives</h3>
+<p>At the time of writing this, the <i>IODELAY2</i> and <i>ODDR2</i> are the only primitives currently supported by the Mojo IDE. All the supported primitives can be found by typing <i>xil</i> and the auto-complete will list the known modules (the primitives are always prefixed with <i>xil_</i>). More primitives will be added over time.</p>
+<p>This sums up how the controller works, but now we need to use it for something.</p>
+<h2>Using the Controller</h2>
+<p>What good is a fancy SDRAM controller if we don't even use it? NO GOOD that what! To demonstrate how to use the controller we are going to create a tester. Our module will write a bunch of stuff to the RAM then read it back to make sure the contents are still there and correct.</p>
+<p>There is one big problem with creating a tester like this. What do we write to the RAM? It has to be something easily <i>generated</i> because we don't have enough memory to memorize all the values. If we did we wouldn't be using the SDRAM. We could use part of the address, but this causes a very artificial pattern that can fail to detect some problems.</p>
+<p>Instead we will use a pseudo-random number generator. The key word there is <i>pseudo</i>. Which is layman's terms translates to <i>not-really-a-random number generator</i>. This is something that generates <i>random-looking</i> numbers but they are actually completely predictable. That's a great property for us because we need to be able to regenerate the exact same 8,388,608 long sequence of numbers to verify our write.</p>
+<p>From the components library add <i>Math/Pseudo-random Number Generator</i> to your project.</p>
+<pre class="brush:lucid;first-line:40">
+module pn_gen #(
+    // SEED needs to always be non-zero
+    // Since seed is XORed with the 32MSBs of SEED, we need the 96 LSBs to be nonzero.
+    SEED = 128h843233523a613966423b622562592c62: SEED.WIDTH == 128 &amp;&amp; SEED[95:0] != 0
+  )(
+    input clk,       // clock
+    input rst,       // reset
+    input next,      // generate next number flag
+    input seed [32], // seed used on reset
+    output num [32]  // "random" number output
+  ) {
+  
+  .clk(clk) {
+    dff x[32], y[32], z[32], w[32]; // state storage
+  }
+  
+  sig t [32];                       // temporary results
+  
+  always {
+    num = w.q;                      // output is from w
+    t = x.q ^ (x.q &lt;&lt; 11);          // calculate intermediate value
+    
+    if (next) {                     // if we need a new number
+      x.d = y.q;                    // shift values along
+      y.d = z.q;                   
+      z.d = w.q;
+      
+      // magic formula from Wikipedia
+      w.d = w.q ^ (w.q >> 19) ^ t ^ (t >> 8);
+    }
+    
+    // Manually reset the flip-flops so we can change the reset value
+    if (rst) {
+      x.d = SEED[0+:32];
+      y.d = SEED[32+:32];
+      z.d = SEED[64+:32];
+      w.d = SEED[96+:32] ^ seed;
+    }
+  }
+}
+</pre>
+<p>This algorithm is called <b>Xorshift</b> and it simply is a ported version of one presented on <a href="https://en.wikipedia.org/wiki/Xorshift" target="_blank">Wikipedia</a>.</p>
+<p>This module will generate a new number each time <i>next</i> is high. It can be reset to start the sequence over. If the value of <i>seed</i> changes, the sequence will be different.</p>
+<p>This type of number generator is great for hardware because it only uses XOR and shift operations. Both of which are really cheap. However, it isn't a super great random number generator and should <b>not</b> be used for crypto purposes where it isn't good enough to <i>look</i> random.</p>
+<h2>The Memory Interface</h2>
+<p>Before we get into our tester module, we need to understand the interface used for reading and writing the SDRAM. Take a look at <i>memory_bus.luc</i>.</p>
+<pre class="brush:lucid:first-line:42">
+// Generic Memory Interface
+global Memory {
+  // Memory slave outputs/master inputs
+  struct slave {
+    data [32],     // data read
+    valid,         // data valid
+    busy           // device busy
+  }
+  
+  // Memory master outputs/slave inputs
+  struct master {
+    data [32],     // data to write
+    valid,         // data valid
+    addr [23],     // address to write/read
+    write          // 1 = write, 0 = read
+  }
+}
+</pre>
+<p>The interface consists of a <i>master</i> and a <i>slave</i>. The <i>slave</i> in this case is the SDRAM controller (the one receiving commands) and we will play the role of the <i>master</i> by issuing commands.</p>
+<p>Whenever we want to issue a command, we need to first make sure that <i>slave.busy</i> is 0. This indicates that the controller can accept a new command.</p>
+<p>To issue a write command we set <i>master.write</i> to 1, <i>master.addr</i> to the address we want to write to, <i>master.data</i> to the value we want to write, and finally <i>master.valid</i> to 1 to indicate a new command.</p>
+<p>To perform a read we set <i>master.write</i> to 0, <i>master.addr</i> to the address to read, and <i>master.valid</i> to 1. The value of <i>master.data</i> is ignored. We then need to wait for <i>slave.valid</i> to be 1. When it is 1, <i>slave.data</i> is the value we requested. Note that <i>slave.busy</i> may go back to 0 before the read is actually complete. This is because the busy flag only says when the controller can accept a new request, not necessarily when it idle. If you issue multiple read requests, they will be processed in the order they are received.</p>
+<h2>The Tester</h2>
+<p>Create a new module named <i>ram_test</i> and copy the following into it.</p>
+<pre class="brush:lucid;class-name:scroll">
+module ram_test (
+    input clk,                         // clock
+    input rst,                         // reset
+    output&lt;Memory.master&gt; memOut,      // memory interface
+    input&lt;Memory.slave&gt; memIn,
+    output leds [8]                    // status LEDs
+  ) {
+  
+  .clk(clk){ .rst(rst) {
+      fsm state = {WRITE, READ};       // states
+      
+      dff addr [23];                   // current address
+      dff error [7];                   // number of errors
+      dff seed [32];                   // seed for each run
+    }
+    pn_gen pn_gen;                     // pseudo-random number generator
+  }
+  
+  always {
+    // Show the state and number of errors on the LEDs
+    leds = c{state.q == state.READ, error.q};
+    
+    pn_gen.seed = seed.q;              // use seed.q as the seed
+    pn_gen.next = 0;                   // don't generate new numbers
+    pn_gen.rst = rst;                  // connect rst by default
+    
+    memOut.addr = addr.q;              // use addr.q as the address
+    memOut.write = 1bx;                // don't care
+    memOut.data = pn_gen.num;          // use the pseudo-random number as data
+    memOut.valid = 0;                  // invalid
+    
+    case (state.q) {
+      state.WRITE:
+        if (!memIn.busy) {             // if RAM isn't busy
+          pn_gen.next = 1;             // generate a new number
+          addr.d = addr.q + 1;         // increment the address
+          memOut.write = 1;            // perform a write
+          memOut.valid = 1;            // command is valid
+          if (addr.q == 23x{1}) {      // if address is maxed
+            addr.d = 0;                // reset to 0
+            state.d = state.READ;      // switch states
+            pn_gen.rst = 1;            // reset the number generator
+          }
+        }
+      state.READ:
+        if (!memIn.busy) {             // if RAM isn't busy
+          addr.d = addr.q + 1;         // increment the address
+          memOut.valid = 1;            // command is valid
+          memOut.write = 0;            // perform a read
+          if (addr.q == 23x{1}-1)      // if address is almost max
+            seed.d = seed.q + 1;       // generate a new seed
+          if (addr.q == 23x{1}) {      // if address is maxed
+            addr.d = 0;                // reset to 0
+            state.d = state.WRITE;     // switch state            
+            pn_gen.rst = 1;            // reset the number generator
+          }
+        }
+        
+        if (memIn.valid) {             // if new data
+          pn_gen.next = 1;             // go to the next number
+          
+          // if the data doesn't match the random number and the
+          // error counter isn't maxed out
+          if (memIn.data != pn_gen.num &amp;&amp; !&amp;error.q)
+            error.d = error.q + 1;     // increment the error counter
+        }
+        
+      default:                         // should never get here
+        state.d = state.WRITE;         // get to a known state
+    }
+  }
+}
+</pre>
+<p>Our tester has two states, <i>WRITE</i> and <i>READ</i>. We start in the <i>WRITE</i> state and fill up the RAM with random stuff. Once the RAM is full, we reset the number generator and move to the <i>READ</i> state.</p>
+<p>In the <i>READ</i> state we read each value back and generate the same sequence of numbers again. If the values we read back don't match the number in our sequence, we increment the error counter. The error counter is setup to saturate at 127 error so if there are a ton of errors it will simply max out.</p>
+<p>We need to be able to see what our tester is doing so we will use the LEDs to show the status. We hook up <i>leds[7]</i> to the state (so we know when it's reading or writing) and the rest to the error counter.</p>
+<h2>Generating the Clock</h2>
+<p>If you've been paying attention (you have haven't you?) you probably noticed that the SDRAM controller says it assumes a clock of 100MHz. However, the Mojo's clock is only 50Mhz. Whatever will do? Luckily the FPGA has a super rad circuit called a PLL that lets you generate new clocks. Even more rad is that there are tools to help us set it up.</p>
+<p>We are going to be using the <b>Core Generator</b> tool from Xilinx. Support for this tool is built into the Mojo IDE, so simply click <i>Project->Launch CoreGen</i>.</p>
+<p><img src="{{media url="wysiwyg/lucid/coregen.png"}}" alt="CoreGen" /></p>
+<p>Under <i>FPGA Features and Design/Clocking</i> double click on <i>Clocking Wizard</i>.</p>
+<p><img src="{{media url="wysiwyg/lucid/clkwiz1.png"}}" alt="Clock Wiz Page 1" /></p>
+<p><i>You're a clocking wizard Harry!</i></p>
+<p>Change the name to just <i>clk_wiz</i> because the default is UGLY. Also uncheck <i>Phase alignment</i> (we don't care about that) and set the <i>primary</i> input clock to 50MHz.</p>
+<p><img src="{{media url="wysiwyg/lucid/clkwiz2.png"}}" alt="Clock Wiz Page 2" /></p>
+<p>On the next page you shouldn't have to change anything as <i>CLK_OUT1</i> is already set to generate 100MHz.</p>
+<p><img src="{{media url="wysiwyg/lucid/clkwiz3.png"}}" alt="Clock Wiz Page 3" /></p>
+<p>On page 3, uncheck everything because again, we don't care.</p>
+<p><img src="{{media url="wysiwyg/lucid/clkwiz5.png"}}" alt="Clock Wiz Page 5" /></p>
+<p>Skip page 4 and on page 5, remove the <i>1</i> from the signal names. We only have one input and one output so why bother labeling them 1?</p>
+<p>Finally, click <i>Generate</i>.</p>
+<p>Once it finishes generating the core, you can close all the CoreGen windows. The core should automagically (it's a word, trust me) be under the <i>Cores</i> section of your project.</p>
+<h2>The Top Level</h2>
+<p>Now that we have all the pieces we need to hook it all up.</p>
+<p>If you take a look at the <i>sdram_shield.ucf</i> file we added in the beginning of the tutorial, you'll notice that there are only two signals defined.</p>
+<pre class="brush:ucf;class-name:scroll">
+NET "sdramOut&lt;0&gt;" LOC = P5 | IOSTANDARD = LVTTL | SLEW = FAST;     # clk
+NET "sdramOut&lt;1&gt;" LOC = P2 | IOSTANDARD = LVTTL | SLEW = FAST;     # cle
+NET "sdramOut&lt;6&gt;" LOC = P6 | IOSTANDARD = LVTTL | SLEW = FAST;     # cs
+NET "sdramOut&lt;2&gt;" LOC = P115 | IOSTANDARD = LVTTL | SLEW = FAST;   # cas
+NET "sdramOut&lt;5&gt;" LOC = P111 | IOSTANDARD = LVTTL | SLEW = FAST;   # ras
+NET "sdramOut&lt;3&gt;" LOC = P112 | IOSTANDARD = LVTTL | SLEW = FAST;   # we
+NET "sdramOut&lt;4&gt;" LOC = P114 | IOSTANDARD = LVTTL | SLEW = FAST;   # dqm
+
+NET "sdramOut&lt;7&gt;" LOC = P116 | IOSTANDARD = LVTTL | SLEW = FAST;   # bank[0]
+NET "sdramOut&lt;8&gt;" LOC = P117 | IOSTANDARD = LVTTL | SLEW = FAST;   # bank[1]
+
+NET "sdramOut&lt;9&gt;" LOC = P118 | IOSTANDARD = LVTTL | SLEW = FAST;   # addr[0]
+NET "sdramOut&lt;10&gt;" LOC = P119 | IOSTANDARD = LVTTL | SLEW = FAST;  # addr[1]
+NET "sdramOut&lt;11&gt;" LOC = P120 | IOSTANDARD = LVTTL | SLEW = FAST;  # addr[2]
+NET "sdramOut&lt;12&gt;" LOC = P121 | IOSTANDARD = LVTTL | SLEW = FAST;  # addr[3]
+NET "sdramOut&lt;13&gt;" LOC = P138 | IOSTANDARD = LVTTL | SLEW = FAST;  # addr[4]
+NET "sdramOut&lt;14&gt;" LOC = P139 | IOSTANDARD = LVTTL | SLEW = FAST;  # addr[5]
+NET "sdramOut&lt;15&gt;" LOC = P140 | IOSTANDARD = LVTTL | SLEW = FAST;  # addr[6]
+NET "sdramOut&lt;16&gt;" LOC = P141 | IOSTANDARD = LVTTL | SLEW = FAST;  # addr[7]
+NET "sdramOut&lt;17&gt;" LOC = P142 | IOSTANDARD = LVTTL | SLEW = FAST;  # addr[8]
+NET "sdramOut&lt;18&gt;" LOC = P143 | IOSTANDARD = LVTTL | SLEW = FAST;  # addr[9]
+NET "sdramOut&lt;19&gt;" LOC = P137 | IOSTANDARD = LVTTL | SLEW = FAST;  # addr[10]
+NET "sdramOut&lt;20&gt;" LOC = P144 | IOSTANDARD = LVTTL | SLEW = FAST;  # addr[11]
+NET "sdramOut&lt;21&gt;" LOC = P1 | IOSTANDARD = LVTTL | SLEW = FAST;    # addr[12]
+
+NET "sdramInOut&lt;0&gt;" LOC = P101 | IOSTANDARD = LVTTL | SLEW = FAST; # dq[0]
+NET "sdramInOut&lt;1&gt;" LOC = P102 | IOSTANDARD = LVTTL | SLEW = FAST; # dq[1]
+NET "sdramInOut&lt;2&gt;" LOC = P104 | IOSTANDARD = LVTTL | SLEW = FAST; # dq[2]
+NET "sdramInOut&lt;3&gt;" LOC = P105 | IOSTANDARD = LVTTL | SLEW = FAST; # dq[3]
+NET "sdramInOut&lt;4&gt;" LOC = P7 | IOSTANDARD = LVTTL | SLEW = FAST;   # dq[4]
+NET "sdramInOut&lt;5&gt;" LOC = P8 | IOSTANDARD = LVTTL | SLEW = FAST;   # dq[5]
+NET "sdramInOut&lt;6&gt;" LOC = P9 | IOSTANDARD = LVTTL | SLEW = FAST;   # dq[6]
+NET "sdramInOut&lt;7&gt;" LOC = P10 | IOSTANDARD = LVTTL | SLEW = FAST;  # dq[7]
+</pre>
+<p>This is setup so that all the signals will pack into the structs defined in the SDRAM controller.</p>
+<p>We can add them to <i>mojo_top.luc</i> like below.</p>
+<pre class="brush:lucid;first-line:14">
+    output&lt;Sdram.out&gt; sdramOut,   // SDRAM outputs
+    inout&lt;Sdram.inOut&gt; sdramInOut // SDRAM inouts
+</pre>
+<p>We now just need to instantiate our modules and hook everything up.</p>
+<pre class="brush:lucid;class-name:scroll">
+module mojo_top (
+    input clk,                    // 50MHz clock
+    input rst_n,                  // reset button (active low)
+    output led [8],               // 8 user controllable LEDs
+    input cclk,                   // configuration clock, AVR ready when high
+    output spi_miso,              // AVR SPI MISO
+    input spi_ss,                 // AVR SPI Slave Select
+    input spi_mosi,               // AVR SPI MOSI
+    input spi_sck,                // AVR SPI Clock
+    output spi_channel [4],       // AVR general purpose pins (used by default to select ADC channel)
+    input avr_tx,                 // AVR TX (FPGA RX)
+    output avr_rx,                // AVR RX (FPGA TX)
+    input avr_rx_busy,            // AVR RX buffer full
+    output&lt;Sdram.out&gt; sdramOut,   // SDRAM outputs
+    inout&lt;Sdram.inOut&gt; sdramInOut // SDRAM inouts
+  ) {
+  
+  sig rst;  // reset signal
+  sig fclk; // 100MHz clock
+  
+  // boost clock to 100MHz
+  clk_wiz clk_wiz;
+  always {
+    clk_wiz.CLK_IN = clk;   // 50MHz in
+    fclk = clk_wiz.CLK_OUT; // 100MHz out (it's like magic!)
+  }
+  
+  .clk(fclk) {
+    // The reset conditioner is used to synchronize the reset signal to the FPGA
+    // clock. This ensures the entire FPGA comes out of reset at the same time.
+    reset_conditioner reset_cond;
+    
+    .rst(rst) {
+      // inouts need to be connected at instantiation and directly to an inout of the module
+      sdram sdram (.sdramInOut(sdramInOut));
+      ram_test ram_test;
+    }
+  }
+  
+  always {
+    reset_cond.in = ~rst_n;        // input raw inverted reset signal
+    rst = reset_cond.out;          // conditioned reset
+    
+    spi_miso = bz;                 // not using SPI
+    spi_channel = bzzzz;           // not using flags
+    avr_rx = bz;                   // not using serial port
+    
+    led = ram_test.leds;           // connect LEDs to ram_test
+    
+    sdram.memIn = ram_test.memOut; // connect ram_test to controller
+    ram_test.memIn = sdram.memOut; // connect controller to ram_test
+    
+    sdramOut = sdram.sdramOut;     // connect controller to SDRAM
+  }
+}
+</pre>
+<p>You should be able to build your project now. Stack your SDRAM Shield onto your Mojo and load the project! If everything went well, you should see the left-most LED blinking and the other 7 off (no errors). Each time the LED blinks, 32MB of data was written and read back from the SDRAM!</p>

@@ -1,0 +1,46 @@
+<p>This tutorial will cover how an FPGA can implement so many different logic circuits simply by being reprogrammed.</p>
+<p>When explaining what an FPGA is to someone, I commonly tell them that there are basically a bunch of logic gates in the FPGA that can be connected however you want to create your circuit. While this is a good way to explain it to someone with little prior knolege on digital design, it's not actually how it work. An FPGA has three main elements,&nbsp;<strong>L</strong>ook-<strong>U</strong>p&nbsp;<strong>T</strong>ables (<strong>LUT</strong>), flip-flops, and the routing matrix, that all work together to create a very flexible device.</p>
+<h3>Look-Up Tables</h3>
+<p>Look-up tables are how your logic actually gets implemented. A LUT consits of some number of inputs and one output. What makes a LUT powerful is that you can&nbsp;<strong>program</strong> what the output should be for every single possible input.</p>
+<p>A LUT consists of a block of RAM that is indexed by the LUT's inputs. The output of the LUT is whatever value is in the indexed location in it's RAM.&nbsp;</p>
+<p>As an example let's look at a 2-input LUT.</p>
+<p><img src="{{media url="wysiwyg//LUT/lut2.png"}}" alt="2 Input Look-Up Table" /></p>
+<p>Since the RAM in the LUT can be set to anything, a 2 input LUT can become any logic gate!</p>
+<p>For example, if we want to implement an AND gate the contents of the RAM would look like this.</p>
+<table style="width: 25%;" border="0">
+    <tbody>
+        <tr><th>Address (In[1:0])</th><th>Value (Out)</th></tr>
+        <tr>
+            <td>00</td>
+            <td>0</td>
+        </tr>
+        <tr>
+            <td>01</td>
+            <td>0</td>
+        </tr>
+        <tr>
+            <td>10</td>
+            <td>0</td>
+        </tr>
+        <tr>
+            <td>11</td>
+            <td>1</td>
+        </tr>
+    </tbody>
+</table>
+<p>It's important to understand that the column&nbsp;<strong>Value (Out)</strong> could be set to anything! It doesn't have to model a single logic gate. If the value for address 01 was a 1, then the LUT would still perform as expected but the equivalent logic circuit would require more than one gate to implement. This is why the metric of equivalent gate count for an FPGA is a confusing and poor metric! It is tricky to specify how complicated of a circuit you can implement in a given FPGA because of all the variables.&nbsp;</p>
+<h4>LUTs in the Mojo</h4>
+<p>In the Spartan 6 used by the Mojo, each LUT is a 6-input LUT. However, it isn't a true 6-input LUT but rather two 5-input LUTs connected together by a multiplexer (MUX).</p>
+<p><img src="{{media url="wysiwyg/LUT/lut6.png"}}" alt="Spartan 6 Look-Up Table" /></p>
+<p>The reason the LUT is designed this way is because it can either be used as a single 6-input LUT, or two 5-input LUTs. The only restriction is that both 5-input LUTs must share the same inputs. When it is configured as two 5-input LUTs,&nbsp;<strong>In[5]</strong> is set to 0.</p>
+<h3>Flip-flops and Slices</h3>
+<p>Each LUT's output can be optionally connected to a flip-flop. Groups of LUTs and flip-flops are called <strong>slices</strong>. In the Spartan 6 used by the Mojo, a slice has 4 LUT6 and 8 flip-flops. These flip-flops are typically configurable allowing the type of reset (asynchronous vs synchronous) and the reset level (high vs low) to be specified. Some of them flip-flops can actually be configured as latches instead of flip-flops, although latches typically aren't good practice to use as they can lead to timing problems.</p>
+<p>The FPGA used by the Mojo has 1,430 slices in it for a total of 5,720 LUTs!</p>
+<p>All slices are not created equal, however. In the Mojo's FPGA there are three types of slices, <strong>SLICEX</strong>, <strong>SLICEL</strong>, and <strong>SLICEM</strong>. The SLICEX is the most basic type of slice and just consists of the four LUT6's and the eight flip-flops. A SLICEL is the same as a SLICEX except it contains extra hardware for a ripple-carry chain used in arithmetic circuits. These help speed up circuits like addition and multiplication. A SLICEM is the same as a SLICEL except the LUTs can be used as 64bits of RAM or a shift register up to 32bits long. The break down of the slices is roughly SLICEX 50%, SLICEL 25% and SLICEM 25%.</p>
+<h3>The Routing Matrix</h3>
+<p>The next size block in the FPGA is the&nbsp;<strong>C</strong>omplex&nbsp;<strong>L</strong>ogic&nbsp;<strong>B</strong>lock (<strong>CLB</strong>) and each CLB consists of two slices. Each CLB connects to a&nbsp;<strong>switch matrix</strong> that is responsible for connecting the CLB to the rest of the FPGA. The switch matrix can connect the inputs and outputs of the CLB to the&nbsp;<strong>general routing matrix</strong> or to each other. That way the output from one LUT can feed into the input of another LUT without having the travel far.</p>
+<p>The routing resources in an FPGA are pretty complicated, but they are essentially a bunch of multiplexers and wires that are used to define what CLBs and other FPGA resources are connected to each other. These connections are again defined in RAM which is why the FPGA must be reconfigured every time the power is cycled (in the Mojo this is taken care of by the AVR).</p>
+<p>There are also special routing sorceress available on the FPGA. The most notable are the clock routing resources. When you have a clock being used in your design, it is very important that the clock signal be distributed as evenly as possible throughout the FPGA so all the flip-flops will flip at roughly the same time. If you were to try and use the general routing resources for this, the clock signal would have large propagation delays from traveling through all the multiplexers. To solve this problem there are global and local routing resources dedicated to clocks. These are basically wires that connect through the entire chip (for global) or sections of the chip (for local) with very little propagation delay. Only inputs from certain pins on the FPGA are allowed to drive a signal on the global clock routing resources. These inputs are labeled GCLK in the Mojo schematic.</p>
+<p>All of these resources used in an FPGA to make them very flexible slow things down. This is why you will never be able to clock an FPGA at speeds comparable to a dedicated chip. An ASIC design can reach speeds faster than 4GHz, while an FPGA is very fast if it's running at 450MHz. This is also why FPGAs consume considerably more power than their ASIC counterparts. An FPGA will require an order of magnitude more power to run than an 8bit microcontroller, like an AVR. However, they still have the huge advantage of being low-cost for small runs (or hobbyists) and re-configurable virtually unlimited times.</p>
+<h3>More Info</h3>
+<p>If you want to know more details about the FPGA used in the Mojo, <a href="http://www.xilinx.com/support/documentation/user_guides/ug384.pdf" target="_blank">this document</a> has everything.&nbsp;</p>

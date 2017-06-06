@@ -1,0 +1,462 @@
+<p>This tutorial will introduce the <a href="/products/io-shield.html">IO Shield</a> and walk through some basic examples to get your feet wet. If you haven't already, I highly recommend reading through the {{widget type="cms/widget_page_link" template="cms/widget/link/link_inline.phtml" page_id="60"}} and {{widget type="cms/widget_page_link" template="cms/widget/link/link_inline.phtml" page_id="62"}} tutorials before continuing.</p>
+<h2>Create the Project</h2>
+<p>In the Mojo IDE, open the new project dialog (File->New Project...) and name it whatever you want. I named mine <i>IO Shield Demo</i>. Before you click <i>Create</i>, select <i>IO Shield</i> from the <i>From Example</i> drop-down menu. This will give you a bare bones base to start working with the shield.</p>
+<p>The only difference between this project and the standard base project is that this has the connections to the IO Shield already defined for you.</p>
+<p>Let's take a look at <i>mojo_top.luc</i>.</p>
+<pre class="brush:lucid">module mojo_top (
+    input clk,              // 50MHz clock
+    input rst_n,            // reset button (active low)
+    output led [8],         // 8 user controllable LEDs
+    input cclk,             // configuration clock, AVR ready when high
+    output spi_miso,        // AVR SPI MISO
+    input spi_ss,           // AVR SPI Slave Select
+    input spi_mosi,         // AVR SPI MOSI
+    input spi_sck,          // AVR SPI Clock
+    output spi_channel [4], // AVR general purpose pins (used by default to select ADC channel)
+    input avr_tx,           // AVR TX (FPGA RX)
+    output avr_rx,          // AVR RX (FPGA TX)
+    input avr_rx_busy,      // AVR RX buffer full
+    output io_led [3][8],   // LEDs on IO Shield
+    output io_seg [8],      // 7-segment LEDs on IO Shield
+    output io_sel [4],      // Digit select on IO Shield
+    input io_button [5],    // 5 buttons on IO Shield
+    input io_dip [3][8]     // DIP switches on IO Shield
+  ) {
+
+  sig rst;                  // reset signal
+
+  .clk(clk) {
+    // The reset conditioner is used to synchronize the reset signal to the FPGA
+    // clock. This ensures the entire FPGA comes out of reset at the same time.
+    reset_conditioner reset_cond;
+  }
+
+  always {
+    reset_cond.in = ~rst_n; // input raw inverted reset signal
+    rst = reset_cond.out;   // conditioned reset
+
+    led = 8h00;             // turn LEDs off
+    spi_miso = bz;          // not using SPI
+    spi_channel = bzzzz;    // not using flags
+    avr_rx = bz;            // not using serial port
+
+    io_led = 3x{{8h00}};    // turn LEDs off
+    io_seg = 8hff;          // turn segments off
+    io_sel = 4hf;           // select no digits
+  }
+}</pre>
+<p>You can see we have a handful of inputs and outputs named <i>io_*</i>. These are the IO Shield specific signals.</p>
+<p><i>io_led</i> connects to the 24 LEDs. This signal is organized as a 2D array to make it easier to access the three groups of 8 LEDs. For example, if you want to get the first group of LEDs you would use <i>io_led[0]</i> and if you wanted to get the third LED in the first group, you would use <i>io_led[0][2]</i>.</p>
+<p>Because <i>io_led</i> is a 2D array, when we set all the LEDs to 0, we have a little fancy syntax.</p>
+<pre class="brush:lucid;first-line:38">    io_led = 3x{{8h00}};    // turn LEDs off</pre>
+<p>We need the dimensions of our constant to match <i>io_led</i>. In this case, <i>io_led</i> is a 3 by 8 array. We use <i>8h00</i> as the base constant which is a single dimensional array of width 8. The <i>x{}</i> syntax takes the outer most dimension and duplicates it. If we wrote <i>3x{8h00}</i>, we would end up with <i>24h000000</i> since the outer most dimension is 8. This isn't what we want as it is still a 1D array. Instead, we need to first create a 1 by 8 array and duplicate it three times. To do this we use the array building syntax, <i>{}</i>. The value <i>{8h00}</i> is a 1 by 8 2D array. We then use <i>3x{{8h00}}</i> to get a 3 by 8 array of all zeros. Note that we could have also written <i>{8h00, 8h00, 8h00}</i>, but the duplication syntax is a bit cleaner.</p> 
+<p><i>io_seg</i> and <i>io_sel</i> are used to control the 4 seven-segment LED displays. They are active low (0 = on, 1 = off) and they will be covered in more detail later.</p>
+<p><i>io_button</i> is simply the 5 push buttons. <i>io_button[0]</i> is up, <i>io_button[1]</i> is center, <i>io_button[2]</i> is down, <i>io_button[3]</i> is left, and <i>io_button[4]</i> is right.</p>
+<p>Finally, <i>io_dip</i> is the 24 DIP switches. This is arranged in a 2D array exactly the same way as <i>io_led</i>.</p>
+<h2>Logic Gates</h2>
+<p>The first example we will work though is connecting a few DIP switches to the LEDs through logic gates. If you aren't familiar with what logic gates (AND, OR, NOT, XOR) are, you should take a look at the {{widget type="cms/widget_page_link" template="cms/widget/link/link_inline.phtml" page_id="15"}} tutorial.</p>
+<p>In this example we are going to start by making the first LED light up when switch 0 <b>and</b> 1 are turned on.</p>
+<pre class="brush:lucid;first-line:29">
+  always {
+    reset_cond.in = ~rst_n; // input raw inverted reset signal
+    rst = reset_cond.out;   // conditioned reset
+
+    led = 8h00;             // turn LEDs off
+    spi_miso = bz;          // not using SPI
+    spi_channel = bzzzz;    // not using flags
+    avr_rx = bz;            // not using serial port
+
+    io_led = 3x{{8h00}};    // turn LEDs off
+    io_seg = 8hff;          // turn segments off
+    io_sel = 4hf;           // select no digits
+
+    io_led[0][0] = io_dip[0][0] &amp; io_dip[0][1];
+  }
+</pre>
+<p>Take a look at line 42. First we need to index the first LED. The first LED is in the first group (group 0) and is the first in its group, so we used the index <i>[0][0]</i>. We then index the first and second switches in the same manner. Finally, we use the <b>&amp;</b> operator to <b>AND</b> the bits together. <b>&amp;</b> is the bit-wise AND operator.</p>
+<p>Notice that I didn't change the line where we assigned all LEDs a value of 0. This is because the assignment to the first LED will simply be overruled by our second assignment. It's good to remember that while <i>always blocks</i> have a sequential order of precedence, they aren't actually sequential. This means that <i>io_led[0][0]</i> will <b>only</b> have the value of the second assignment and it as if the first assignment never happened. The tools will simply wire an AND gate to the two switch inputs and the led output.</p>
+<p>Go ahead and build/load the project onto your Mojo. Try playing with the first two switches. If either switch is off, the LED should be off. Only when both switches are on should the LED turn on.</p>
+<p>You can now go back and replace the <b>&amp;</b> operator with the operators for OR, <b>|</b>, XOR, <b>^</b>, and XNOR, <b>~^</b>. Play with the switches and make sure you understand the different operators.</p>
+<p><b>Practice:</b> Add two more lines to the <i>always block</i> so that the first LED of the first group lights up as before, the first LED of the second group lights up when either (OR) of the first two switches in the second group are on, and the first LED of the last group lights up only when exactly one (XOR) switch of the first two switches in the last group are on.</p>
+<h2>Bit-wise</h2>
+<p>The operators we have talked about so far are all bit-wise operators. That means that they operate on two equally sized arrays and will perform their operation on each pair of bits individually.</p>
+<p>For example, if we want to light up the LED in the first group only when the corresponding switch in the first and second groups are both on we could do the following.</p>
+<pre class="brush:lucid;first-line:29">
+  always {
+    reset_cond.in = ~rst_n; // input raw inverted reset signal
+    rst = reset_cond.out;   // conditioned reset
+
+    led = 8h00;             // turn LEDs off
+    spi_miso = bz;          // not using SPI
+    spi_channel = bzzzz;    // not using flags
+    avr_rx = bz;            // not using serial port
+
+    io_led = 3x{{8h00}};    // turn LEDs off
+    io_seg = 8hff;          // turn segments off
+    io_sel = 4hf;           // select no digits
+
+    io_led[0] = io_dip[0] &amp; io_dip[1];
+  }
+</pre>
+<p>Note that <i>io_led[0]</i> is an array of width 8, and so is <i>io_dip[0]</i> and <i>io_dip[1]</i>. This single statement will create 8 individual AND gates.</p>
+<p>You can again use the OR, XOR, and XNOR operators in the same way.</p>
+<p>We can also chain multiple gates together. For example, what if we want the LED to light only when the corresponding switch in all three groups is on?</p>
+<pre class="brush:lucid;first-line:42">
+    io_led[0] = io_dip[0] &amp; io_dip[1] &amp; io_dip[2];
+</pre>
+<p>Bit-wise operators are evaluated from left to right so in this case <i>io_dip[0]</i> will be ANDed with <i>io_dip[1]</i> and the result will then be ANDed with <i>io_dip[2]</i>. In the case of AND gates, the order actually doesn't matter. However, if you start mixing and matching operators the order can matter. You can also use parenthesis to make the order you want things evaluated explicit.</p>
+<p><b>Practice:</b> Use two bit-wise operators so that the LEDs in the first group light up when the corresponding switch in the third group is on or both switches in the first two groups are on.</p>
+<h2>Reduction Operators</h2>
+<p>Reduction operators are similar to the bit-wise operators but they work on a single input array and always output one bit. You could say they <i>reduce</i> an array to a single bit.<p>
+<p>You can think of these operators as one huge logic gate with many inputs. The number of inputs is equal to the size of the array the operator is used on.</p>
+<p>In our example, we want to turn the first LED on only if every switch in the first group is turned on. To do this we can use the <b>&amp;</b> reduction operator.</p>
+<pre class="brush:lucid;first-line:29">
+  always {
+    reset_cond.in = ~rst_n; // input raw inverted reset signal
+    rst = reset_cond.out;   // conditioned reset
+
+    led = 8h00;             // turn LEDs off
+    spi_miso = bz;          // not using SPI
+    spi_channel = bzzzz;    // not using flags
+    avr_rx = bz;            // not using serial port
+
+    io_led = 3x{{8h00}};    // turn LEDs off
+    io_seg = 8hff;          // turn segments off
+    io_sel = 4hf;           // select no digits
+
+    io_led[0][0] = &amp;io_dip[0];
+  }
+</pre>
+<p>This is equivalent to ANDing each bit individually as shown below.</p>
+<pre class="brush:lucid;first-line:42">
+    io_led[0][0] = io_dip[0][0] &amp; io_dip[0][1] &amp; io_dip[0][2] &amp; io_dip[0][3] &amp; io_dip[0][4] &amp; io_dip[0][5] &amp; io_dip[0][6] &amp; io_dip[0][7];  
+</pre>
+<p>However, as you can tell, the reduction operator is much more compact.</p>
+<p>It is even possible to use the reduction operators on multi-dimensional arrays. For example, if we want the LED to turn on when <b>any</b> switch is on we could use the following.</p>
+<pre class="brush:lucid;first-line:42">
+    io_led[0][0] = |io_dip; 
+</pre>
+<p>I tend to use the AND version to easily detect if a signal is at its maximum value (all 1's). The OR version basically tells you if the value is not 0 and the XOR version will tell you if there is an odd number of 1's.</p>
+<p>Each of these operators can also be negated with the bit-wise negate operator, <b>~</b>. You can simply place this in front of the expression to get the NAND, NOR, and XNOR equivalents.</p>
+<p><b>Practice:</b> Using your newly acquired bit-wise and reduction operator skills, make the first LED light up when any switch in the third group is on, or all the switches in the second group are on and the first group has an odd number of switches on. This is a fairly tricky challenge but everything you need has been mentioned in this tutorial. If you get stuck feel free to head over to the <a href="/forum">forum</a> for some help.</p>
+<h2>Math</h2>
+<p>This part of the tutorial we will look at addition, subtraction, and multiplication. We will be performing different operations using the DIP switches as our number inputs. This means everything will be in binary, so if you aren't familiar with binary check out the {{widget type="cms/widget_page_link" template="cms/widget/link/link_inline.phtml" page_id="18"}} tutorial.</p>
+<p>Let's start with some addition. We will add the binary values from the first and second groups of DIP switches.</p>
+<pre class="brush:lucid;first-line:29">
+  sig result [24];          // result of our operations
+
+  always {
+    reset_cond.in = ~rst_n; // input raw inverted reset signal
+    rst = reset_cond.out;   // conditioned reset
+
+    led = 8h00;             // turn LEDs off
+    spi_miso = bz;          // not using SPI
+    spi_channel = bzzzz;    // not using flags
+    avr_rx = bz;            // not using serial port
+
+    io_seg = 8hff;          // turn segments off
+    io_sel = 4hf;           // select no digits
+
+    result = io_dip[1] + io_dip[0]; // add the switch values
+
+    io_led = {result[23-:8], result[15-:8], result[7-:8]};    // connect result to LEDs
+  }
+</pre>
+<p>Because the result of many of our operations will be more than 8 bits, we can create a signal, <i>result</i>, to hold the value. You can think of signals (<b>sig</b>) simply as wires. They don't add any cost to your design as they simply define the connection from something to something else.</p>
+<p>We set result to be the output of our addition. The addition of two 8 bit numbers results in a 9 bit result. This is because an 8 bit number has the range 0-255 so adding two of them together will have the range 0-510, which requires 9 bits to represent.</p>
+<p>We then take result and connect it to the LEDs so that we can see all 24 bits.</p>
+<p>Build and load your project to your Mojo. Congratulations! You've just build a very basic calculator. To make sure everything is working properly, let's calculate 2+2. 2 has the binary representation of 0000 0010. Set both groups of switches to 2. The result on the LEDs should be 4, or 0000 0100.</p>
+<p>Now change the <b>+</b> to a <b>-</b> to subtract the first switch value from the second.</p>
+<pre class="brush:lucid;first-line:43">
+    result = io_dip[1] - io_dip[0]; // subtract the switch values
+</pre>
+<p>What happens when you set the second switch to 0 and the first to 1 so you're performing 0-1? All 24 LEDs turn on! You can interpret this answer in two different ways. The first is that the result simply underflowed and restarted back at the maximum value. The second way is to assume the number is a 2's compliment representation of -1. Both are valid interpretations and what you use will depend on the scenario.</p>
+<p>Even though when the number is negative all 24 LEDs light up, you only need 9 bits to represent any 8 bit by 8 bit addition or subtraction. This is because when the value would be negative, dropping the leading 1's doesn't change its value.</p>
+<p>Finally, change the <b>-</b> to <b>*</b> to test out multiplication.</p>
+<pre class="brush:lucid;first-line:43">
+    result = io_dip[1] * io_dip[0]; // multiply the switch values
+</pre>
+<p>You should notice that multiplying two numbers can generate a much bigger result than the operands. The result will generally be twice the size of the inputs. So in our case, up to 16 bits wide.</p>
+<p>Multiplication is much more expensive to perform than a simple addition or subtraction. This is because a multiplication is essentially many additions. Multiplying two 8 bit numbers will result in a series of eight additions.</p>
+<p>Also note that we didn't talk about division. This is because there isn't a division operator. Division is much more complicated than even multiplication and there are some trade offs you need to decide for your design so a default option doesn't make sense. If you don't need real division, you can approximate it by multiplying with fractions.</p>
+<p>To approximate division, you can first multiply by any number and then shift the value to the right. Shifting to the right effectively divides by a power of two (rounding down). For example, if you want to divide a number by 3, you could multiply by 85 then shift right 8 bits. This will effectively multiply your value by 85/256 = 0.33203 which is pretty close to 1/3. If you need higher precision, you can use more bits. For example, you could instead multiply by 21845 and shift 16 bits to the right. This is effectively multiplying by 0.333328, but 16 bit multiplication is significantly more expensive than 8 bit.</p>
+<h2>Seven-Segment Displays</h2>
+<p>The IO Shield has four seven-segment displays that are multiplexed. This means that we have two groups of signals, the first, <i>io_seg</i>, connects to the segments of each display.</p>
+<p><img src="{{media url="wysiwyg/lucid/7-seg.png"}}" alt="Seven Segment Display" /></p>
+<p>Note that even though we call these <i>seven</i>-segment displays there are actually 8 LEDs in each one because of the decimal point.</p>
+<p>All four displays have all their segments connected together. That means if you apply power to segment 0, all four displays segment 0 receive power! This is done to save on the number of pins required to drive the displays. However, it means that we need a way to disable all but one display so that we can show a unique number on each one.</p>
+<p>This is where the second group of signals, <i>io_sel</i>, comes in handy. These are used to select which digit is active. Typically, only one digit will be active at any time. If you have more than one digit active, all active digits will show exactly the same thing since their segments are wired together.</p>
+<p>The way we are going to display four unique numbers is by cycling which digit is active really fast. If we can do this fast enough, our eyes can't tell and it looks like all four digits are always on.</p>
+<p>However, before we do that, let's play around with the displays a bit to get familiar with how they work.</p>
+<h2>Indexing Segments</h2>
+<p>We are going to setup some modules so that we light one segment at a time. To do this we will be using some of the components built into the Mojo IDE.</p>
+<p>Click <b>Project->Add Components...</b>. Under <b>Miscellaneous</b> check off <i>Counter</i> and <i>Decoder</i>. Click <b>Add</b> to add them to your project.</p>
+<p>You can now find the source for these components under <b>Components</b> in the left project tree in the Mojo IDE. Note that while you are free to look at the source, components are read-only (no editing!). If you ever want to modify a component, simply copy and paste the code into a module of your own.</p>
+<p>It's always a good idea to check out the source and read the description of the component. Many components have parameters that you can set to customize them for your use. We'll be doing exactly that with these two.</p>
+<pre class="brush:lucid;first-line:23">
+  .clk(clk) {
+    // The reset conditioner is used to synchronize the reset signal to the FPGA
+    // clock. This ensures the entire FPGA comes out of reset at the same time.
+    reset_conditioner reset_cond;
+
+    .rst(rst) {
+      counter ctr (#SIZE(3), #DIV(24));
+    }
+  }
+
+  decoder num_to_seg (#WIDTH(3));
+</pre>
+<p>Here we add the <i>counter</i> and <i>decoder</i> to <i>mojo_top</i>. The <i>counter</i> component requires both a clock and reset signal so we have it in the nested in both the <i>.clk</i> and <i>.rst</i> connection blocks. On the other hand, <i>decoder</i> doesn't require either, so it is outside of both.</p>
+<p>The counter is simply a counter. It will output a value starting from zero and increment to whatever the maximum value you set is. After that it will reset back to zero. It is also possible to configure it to count down from the max value to zero.</p>
+<p>The counter has four parameters you can set to get it to operate how you want, but here we only need to change two. <i>SIZE</i> dictates how wide the output of the counter is. In this case we need it to count from 0 to 7 for all 8 segments of our displays. Three bits is exactly 0 - 7. If we wanted to count to a value that wasn't conveniently a power of 2 minus one, we could set the parameter <i>TOP</i> to control its maximum value.</p>
+<p>The <i>DIV</i> parameter is used to set how many bits to use to divide the clock. By setting this to 24, the counter will only increment its output every 2<sup>24</sup>, or 16,777,216, clock cycles. This is helpful since the clock runs at 50MHz (50,000,000 cycles per second) so if the counter incremented every clock cycle it would be way too fast for us to see.</p>
+<p>The decoder is a binary to one-hot decoder. If you need a refresher on one-hot representation check out the {{widget type="cms/widget_page_link" template="cms/widget/link/link_inline.phtml" page_id="18"}} tutorial. Basically, the decoder will take our three bits and convert it to eight bits. If the input is 0, then the 0th bit of the output will be 1 and everything else will be 0. If the input is 4, the 4th bit will be 1 and everything else will be 0. This allows us to use the binary counter to light individual LEDs.</p>
+<p>Note that the output of the decoder is 2<sup><i>WIDTH</i></sup> bits wide. So in our case, 2<sup>3</sup> = 8 bits wide.</p>
+<p>Now we can hook up the modules.</p>
+<pre class="brush:lucid;first-line:46">
+    num_to_seg.in = ctr.value;
+
+    io_seg = ~num_to_seg.out; // connect segments to counter
+    io_sel = 4h0;             // select all digits
+</pre>
+<p>We feed the binary counter value into the decoder and the output of the decoder to <i>io_seg</i>. Note that <i>io_seg</i> and <i>io_sel</i> are both <b>active low</b>. This means that when the signal is 0, it is active. To turn only one LED on we need to invert the output of the decoder with the bit-wise inversion, <i>~</i>, operator. This will make the signal zero-hot.</p>
+<p>Also notice we need to set <i>io_sel</i> to 0 so that the LED segments are selected. Setting all of them to 0 will turn them all on.</p>
+<p>Build and load your project to your Mojo. You should now see the segments of all 4 displays lighting one at time. Try to light only a single display by setting <i>io_sel</i> to <i>~4h1</i> instead.</p>
+<p>Now what if we wanted to cycle through each digit? We need another counter that increments each time the original counter overflows. That way once each LED of a specific digit is lit, the next digit is selected. However, we don't actually need another counter to do this! We can simply make our existing counter 2 bits wider. By adding extra bits, these will increment only when the lower three bits overflow, creating the behavior we want.</p>
+<pre class="brush:lucid;first-line:23">
+  .clk(clk) {
+    // The reset conditioner is used to synchronize the reset signal to the FPGA
+    // clock. This ensures the entire FPGA comes out of reset at the same time.
+    reset_conditioner reset_cond;
+
+    .rst(rst) {
+      counter ctr (#SIZE(5), #DIV(24));
+    }
+  }
+
+  decoder num_to_seg (#WIDTH(3));
+  decoder num_to_digit (#WIDTH(2));
+</pre>
+<p>Here we increase the <i>SIZE</i> of <i>ctr</i> to 5. We also add another decoder with <i>WIDTH</i> of 2. We need 2 since we have 4 digits to select from and an input of 2 bits gives us possible values of 0-3.</p>
+<pre class="brush:lucid;first-line:47">
+    num_to_seg.in = ctr.value[2:0];   // lower three bits used for segments
+    num_to_digit.in = ctr.value[4:3]; // upper two bits used for digits
+
+    io_seg = ~num_to_seg.out;   // connect segments to counter
+    io_sel = ~num_to_digit.out; // connect digit select to counter
+</pre>
+<p>We can select the lower three bits of <i>ctr.value</i> by using the bit selector <i>[2:0]</i>. This says we want bits 2 down-to 0 inclusive. We can do the same thing for the upper two bits.</p>
+<p>Build and load your project again. This time you should see only one digit and one segment lit at any time. Once each segment of a digit has been lit, the next digit is selected.</p>
+<p>You may have also noticed that the segments are now much brighter. This is because the resistor that is in-line with the LEDs is sized for a single LED, not all four. When you have all four on at the same time, the current is split between them making them all dimmer.</p>
+<h2>Getting Fancy With Numbers</h2>
+<p>Lighting up the segments is super cool and all, but it's much cooler to actually show some numbers.</p>
+<p>Before we jump into multiplexing, we need a way to convert a number into the segments that need to be lit to represent that number. To do this we can use a look-up table.</p>
+<p>Create a new module called <i>seven_seg</i> and add the following.</p>
+<pre class="brush:lucid">
+module seven_seg (
+    input char[4],
+    output segs[7]
+  ) {
+
+  always {
+    case (char) {
+      0: segs = 7b0111111;
+      1: segs = 7b0000110;
+      2: segs = 7b1011011;
+      3: segs = 7b1001111;
+      4: segs = 7b1100110;
+      5: segs = 7b1101101;
+      6: segs = 7b1111101;
+      7: segs = 7b0000111;
+      8: segs = 7b1111111;
+      9: segs = 7b1100111;
+      default: segs = 7b0000000;
+    }
+  }
+}
+</pre>
+<p>This module will take a binary number, <i>char</i>, and output the segments, <i>segs</i>, that need to be on.</p>
+<p>This modules uses a <b>case</b> statement. Case statements are equivalent to a bunch of <i>if</i> statements. One of the entries will be selected based on the value of <i>char</i>. If <i>char</i> is 1, then only the block after the <i>1:</i> is used. If none of the blocks match, the <i>default:</i> block is used. The default block is optional, but it is generally a good idea to include it even if you think you have all the cases covered.</p>
+<p>If <i>char</i> is an invalid number (not 0-9), then all the segments will be off.</p>
+<p>To test out our look-up table, let's connect it to our counter.</p>
+<pre class="brush:lucid;first-line:23">
+  .clk(clk) {
+    // The reset conditioner is used to synchronize the reset signal to the FPGA
+    // clock. This ensures the entire FPGA comes out of reset at the same time.
+    reset_conditioner reset_cond;
+
+    .rst(rst) {
+      counter ctr (#SIZE(4), #TOP(9), #DIV(24));
+    }
+  }
+
+  seven_seg seg;
+</pre>
+<p>We need <i>ctr</i> to count from 0-9 so we set <i>TOP</i> to 9 to cap its value. Also we need to change <i>SIZE</i> to 4, as we only need 4 bits to represent 0-9.</p>
+<p>Because we don't need the decoders anymore, we can remove them and add our <i>seven_seg</i> module.</p>
+<p>Finally, we need to wire it up the LEDs</p>
+<pre class="brush:lucid;first-line:46">
+    seg.char = ctr.value;
+
+    io_seg = ~seg.segs;   // connect segments to counter
+    io_sel = ~4h1;        // first digit only
+</pre>
+<p><i>io_sel</i> is set to <i>~4h1</i> so that only the right most digit is on.</p>
+<p>Build and load the project to your Mojo to make sure the first digit is correctly counting from 0 to 9.</p>
+<p>Now we need to make a module that will take four values in and display them on all four digits instead of only using one.</p>
+<p>Create a new module called <i>multi_seven_seg</i> and add the following code.</p>
+<pre class="brush:lucid">
+module multi_seven_seg #(
+    DIGITS = 4 : DIGITS > 0,
+    DIV = 16 : DIV >= 0
+  )(
+    input clk,                // clock
+    input rst,                // reset
+    input values [DIGITS][4], // values to show
+    output seg [7],           // LED segments
+    output sel [DIGITS]       // Digit select
+  ) {
+
+  // number of bits required to store DIGITS-1
+  const DIGIT_BITS = $clog2(DIGITS);
+
+  .clk(clk), .rst(rst) {
+    counter ctr (#DIV(DIV), #SIZE(DIGIT_BITS), #TOP(DIGITS-1)); 
+  }
+
+  seven_seg seg_dec;                      // segment decoder
+  decoder digit_dec (#WIDTH(DIGIT_BITS)); // digit decoder
+
+  always {
+    seg_dec.char = values[ctr.value];     // select the value for the active digit
+    seg = seg_dec.segs;                   // output the decoded value
+
+    digit_dec.in = ctr.value;             // decode active digit to one-hot
+    sel = digit_dec.out;                  // output the active digit
+  }
+}
+</pre>
+<p>This module is parameterized so that it could be used to drive more or less than 4 digits, but the defaults are set to work well with our project.</p>
+<p>The constant <i>DIGIT_BITS</i> is the number of bits we need to cover all <i>DIGITS</i> number of digits. We use the function <i>$clog2()</i> which computes the ceiling log base 2 of a constant value.</p>
+<p>We only want the counter to count from 0 to <i>DIGITS-1</i> so we set the <i>TOP</i> parameter accordingly.</p>
+<p><i>DIV</i> is used so that we don't switch between the digits too fast. If we switch too fast, the transistors that drive the LEDs don't have time to fully turn off and we get bleed between digits.</p>
+<p>The way this module works is <i>ctr</i> is used to select the active digit. The value from <i>values</i> is then selected, decoded, and sent to the segments of the LEDs displays. The binary value of the active digit is then decoded into a one-hot value as before and used to select which digit is on. Because <i>ctr</i> keeps cycling the active digits, all the displays will appear on.</p>
+<p>We can tweak <i>DIV</i>, but if it is set too high, we will start to see the digits flicker. If it is set too low, we will see bleeding between digits.</p>
+<p>Let's test out this module by feeding it some constant numbers to show.</p>
+<pre class="brush:lucid;first-line:23">
+  .clk(clk) {
+    // The reset conditioner is used to synchronize the reset signal to the FPGA
+    // clock. This ensures the entire FPGA comes out of reset at the same time.
+    reset_conditioner reset_cond;
+
+    .rst(rst) {
+      multi_seven_seg seg;
+    }
+  }
+</pre>
+<p>We don't need the counter from before, but we need the <i>multi_seven_seg</i> now.</p>
+<pre class="brush:lucid;first-line:44">
+    seg.values = {4h8,4h5,4h3,4h1};
+
+    io_seg = ~seg.seg; // connect segments to the driver
+    io_sel = ~seg.sel; // connect digit select to the driver
+</pre>
+<p>On line 44 we feed the values to display into the driver.</p>
+<p>Build and load the design to your Mojo to make sure each digit is displaying the correct number.</p>
+<h2>Decimal Counters</h2>
+<p>Alright, now that we have a way to show a value on our display, let's make a the display count! For this we need a decimal counter. We could use a regular counter and convert the binary value into four decimal values, but that's a bit trickier. Instead, we will create a special counter that counts in base 10.</p>
+<p>To do this we will create two modules. The first will be a single digit counter and the second will chain these together for a multi-digit counter.</p>
+<p>Create a new module called <i>decimal_counter</i> with the following code.</p>
+<pre class="brush:lucid">
+module decimal_counter (
+    input clk,      // clock
+    input rst,      // reset
+    input inc,      // increment the counter
+    output ovf,     // counter overflowed
+    output value[4] // current value
+  ) {
+
+  .clk(clk), .rst(rst) {
+    dff val[4];     // value storage
+  }
+
+  always {
+    value = val.q;           // output the value
+
+    ovf = val.q == 9 &amp;&amp; inc; // if max value and incrementing, overflow!
+
+    if (inc) {               // should add 1
+      if (val.q == 9)        // if max value
+        val.d = 0;           // reset to 0
+      else                   // otherwise
+        val.d = val.q + 1;   // add one
+    }
+  }
+}
+</pre>
+<p>Our decimal counter has an input <i>inc</i> that is used to signal when the value should be increased. When the digit is about to overflow to 0, the flag <i>ovf</i> is set to 1. The current value of the counter is output on <i>value</i>.</p>
+<p>We now need to chain these together to make a multi-digit counter.</p>
+<p>Create a new module named <i>multi_dec_ctr</i> and add the following code.</p>
+<pre class="brush:lucid">
+module multi_dec_ctr #(
+    DIGITS = 4 : DIGITS >= 2  // number of digits
+  ) (
+    input clk,                // clock
+    input rst,                // reset
+    input inc,                // increment counter
+    output digits[DIGITS][4]  // digit values
+  ) {
+
+  .clk(clk), .rst(rst) {
+    decimal_counter dctr [DIGITS]; // digit counters
+  }
+
+  always {
+    dctr.inc[0] = inc;   // increment the first digit
+    digits = dctr.value; // output the values
+
+    // if the previous digit overflows, increment the next
+    dctr.inc[1+:DIGITS-1] = dctr.ovf[0+:DIGITS-1];
+  }
+}
+</pre>
+<p>Here we take <i>DIGITS</i> <i>decimal_counter</i>s and chain them together. Each counter <i>inc</i> signal is connected to the previous counter's <i>ovf</i> signal. This means that once a counter overflows from 9 to 0, the next one will be incremented. Of course, the first counter doesn't have a previous counter's <i>ovf</i> signal, so we use an external increment signal instead.</p>
+<p>We use the bit selectors <i>[1+:DIGITS-1]</i> and <i>[0+:DIGITS-1]</i> to select bits from <i>dctr.inc</i> and <i>dctr.ovf</i>. What <i>[1+:DIGITS-1]</i> means is starting from bit 1, select <i>DIGITS-1</i> bits going up. This is an easy way to select a specified number of bits given some start index. You can use <i>-:</i> instead of <i>+:</i> to select bits going down from the given start index instead of going up.</p>
+<p>All that is left now is to generate the <i>inc</i> signal and connect the counter to our display driver.</p>
+<p>The <i>inc</i> signal needs to be a pulse that stays high for only one clock cycle every time we want to increment our counter. To create this we are going to use the counter component as before, but there is a problem with this. If we create a counter that only outputs one bit, the bit will be high for have of the time and not just one cycle at a time. To fix this we will use another component, the <i>Edge Detector</i>.</p>
+<p>Go into the component selector and add the <i>Edge Detector</i> to your project. You can find it under <b>Miscellaneous</b>.</p>
+<p>This component takes a signal and sends out a pulse when it detects a rising, falling, or either type of edge. You can configure which edges you care about.</p>
+<p>Let's add all the modules to <i>mojo_top</i>.</p>
+<pre class="brush:lucid;first-line:23">
+  .clk(clk) {
+    // The reset conditioner is used to synchronize the reset signal to the FPGA
+    // clock. This ensures the entire FPGA comes out of reset at the same time.
+    reset_conditioner reset_cond;
+
+    edge_detector edge_detector (#RISE(1), #FALL(0));
+
+    .rst(rst) {
+      multi_seven_seg seg;
+      multi_dec_ctr dec_ctr;
+      counter ctr (#SIZE(1), #DIV(24));
+    }
+  }
+</pre>
+<p>For the edge detector, we set <i>RISE</i> to 1 and <i>FALL</i> to 0. This means we will generate a pulse only on rising edges.</p>
+<p>We now have the multi-digit driver, the multi-digit counter, and a way to generate a pulse from the counter.</p>
+<p>Let's wire them all up!</p>
+<pre class="brush:lucid;first-line:48">
+    edge_detector.in = ctr.value;
+    dec_ctr.inc = edge_detector.out;
+    seg.values = dec_ctr.digits;
+
+    io_seg = ~seg.seg; // connect segments to the driver
+    io_sel = ~seg.sel; // connect digit select to the driver
+</pre>
+<p>The value from the counter is fed into the edge detector. The pulse from the edge detector is fed into the decimal counter. The decimals from the decimal counter are sent to the multi-digit driver. Finally, the multi-digit driver is connected to the actual display.</p>
+<p>This is what is so cool about FPGAs. Each one of these modules operates completely independently from one another since they all exist in hardware!</p>
+<p>This example is fairly complicated, but by breaking down the problem in little chunks (modules) we were able to create a design that is relatively easy to understand and flexible for future upgrades.</p>
+<p>Now for the moment of truth, build and load the project onto your Mojo! With any luck, you should see the seven-segment display counting!</p>
+<p>If you want to make it count slower or faster you can mess with <i>ctr</i>'s <i>DIV</i> value.</p>
+<h2>Using the Buttons</h2>
+<p>Coming Soon!</p>

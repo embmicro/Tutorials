@@ -1,0 +1,121 @@
+<p>This tutorial is to get you familiar with how to create a project and the very basics of Verilog.</p>
+<p>Before starting this tutorial, make sure you have installed the {{widget type="cms/widget_page_link" anchor_text="Mojo Loader" template="cms/widget/link/link_inline.phtml" page_id="24"}} and {{widget type="cms/widget_page_link" anchor_text="ISE" template="cms/widget/link/link_inline.phtml" page_id="23"}}.</p>
+<p>First you will need to download the base project available <a href="https://github.com/embmicro/mojo-base-project/archive/master.zip" target="_blank">here</a>, or check it out from <a href="https://github.com/embmicro/mojo-base-project" target="_blank">GitHub</a>.</p>
+<p><span style="color: #ff0000;">Note that this is the starter code for any project. It is not specific to this tutorial and without modifications does&nbsp;<strong>nothing</strong>. You must follow the tutorial and make the necessary modifications to the code to get it to work.</span></p>
+<p>Extract that file to where you want to keep your projects. It is a good starting point for any project created for the Mojo.</p>
+<p>The file structure is as follows.</p>
+<ul>
+    <li>Mojo-Base
+        <ul>
+            <li>ipcore_dir&nbsp;-&nbsp;<em>where IP cores will go that you generate</em></li>
+            <li>iseconfig -&nbsp;<em>used by ISE</em></li>
+            <li>src -&nbsp;<em>where you put all the files you write</em></li>
+            <li>syn -&nbsp;<em>the working directory for ISE</em></li>
+            <li>Mojo-Base.xise -&nbsp;<em>the ISE project file</em></li>
+        </ul>
+    </li>
+</ul>
+<p><em></em>Open up ISE (ISE Design Tools-&gt;Project Navigator on Windows) and click File-&gt;Open Project and select Mojo-Base.xise</p>
+<p>It should now look something like this.</p>
+<p><img src="{{media url="wysiwyg/creating-a-project/ise_open.jpg"}}" alt="ISE Opened" /></p>
+<p>For your very first project, we are simply going to wire up the reset button to one of the LEDs on the board. We will make it so the LED will turn on when you push the button.&nbsp;</p>
+<p>Go ahead and double click on the left side where it says <strong>mojo-top (mojo-top.v)</strong> under the hierarchy panel. The file should open and you should see the following code.</p>
+<pre class="brush: verilog">module mojo_top(
+    // 50MHz clock input
+    input clk,
+    // Input from reset button (active low)
+    input rst_n,
+    // cclk input from AVR, high when AVR is ready
+    input cclk,
+    // Outputs to the 8 onboard LEDs
+    output[7:0]led,
+    // AVR SPI connections
+    output spi_miso,
+    input spi_ss,
+    input spi_mosi,
+    input spi_sck,
+    // AVR ADC channel select
+    output [3:0] spi_channel,
+    // Serial connections
+    input avr_tx, // AVR Tx => FPGA Rx
+    output avr_rx, // AVR Rx => FPGA Tx
+    input avr_rx_busy // AVR Rx buffer full
+  );
+  
+  wire rst = ~rst_n; // make reset active high
+  
+  // these signals should be high-z when not used
+  assign spi_miso = 1'bz;
+  assign avr_rx = 1'bz;
+  assign spi_channel = 4'bzzzz;
+  
+  assign led = 8'b0;
+  
+endmodule</pre>
+<p>Let me explain what each part of the code does.</p>
+<h3>Port declarations</h3>
+<pre class="brush: verilog">module mojo_top(
+    // 50MHz clock input
+    input clk,
+    // Input from reset button (active low)
+    input rst_n,
+    // cclk input from AVR, high when AVR is ready
+    input cclk,
+    // Outputs to the 8 onboard LEDs
+    output[7:0]led,
+    // AVR SPI connections
+    output spi_miso,
+    input spi_ss,
+    input spi_mosi,
+    input spi_sck,
+    // AVR ADC channel select
+    output [3:0] spi_channel,
+    // Serial connections
+    input avr_tx, // AVR Tx => FPGA Rx
+    output avr_rx, // AVR Rx => FPGA Tx
+    input avr_rx_busy // AVR Rx buffer full
+  );</pre>
+<p>This is the&nbsp;<strong>port&nbsp;</strong><strong>declaration</strong>. This tells what signals are going in and out of the module. Remember we are designing circuits, not writing code, so it is good to think of each module as a block that has some inputs and generates some outputs. For now we only are interested in the <strong>rst_n</strong> input and the <strong>led</strong> outputs.</p>
+<p>In Verilog there are two data types,&nbsp;<strong>wire</strong> and&nbsp;<strong>reg</strong>. The default in a port declaration is a wire. For now, we will only be working with wires and regs will be covered in the next tutorial.&nbsp;</p>
+<p>You may have noticed this line.</p>
+<pre class="brush: verilog; first-line: 9">    output[7:0]led,</pre>
+<p>This is not a single output but actually 8! You can create an array of wires (or regs) &nbsp;by using those brackets. What&nbsp;<strong>[7:0]</strong> actually means is that led will be an array of eight wires that have an index from 7 down to 0, inclusive.&nbsp;</p>
+<p>It is possible to do [8:1] or [0:7], but unless you have a&nbsp;<strong>very very</strong> good reason for doing that then you should stick to the convention. Mixing what you used as a base index and the order can create major headaches.</p>
+<h3>Declaring a wire</h3>
+<p>This brings us to the first line after the port declaration.&nbsp;</p>
+<pre class="brush: verilog; first-line: 23">wire rst = ~rst_n;</pre>
+<p>In this line we are declaring a new wire called rst and assigning it a value.</p>
+<p>It is a common convention to name signals that are active low (meaning a 0 is active) by appending&nbsp;<strong>_n</strong> to the end of their name. Following that convention,&nbsp;<strong>rst_n</strong> is active low, but we want an active high signal. To make&nbsp;<strong>rst</strong>&nbsp;an active high version of&nbsp;<strong>rst_n</strong> we can just invert&nbsp;<strong>rst_n</strong>.&nbsp;The <strong>~</strong> operator is the <strong>not</strong> operator.&nbsp;</p>
+<p>In this case, we are declaring a one bit wire. However, you can declare an array of wires (sometimes also called an n-bit wire where n is the width of the array) with the following line.</p>
+<pre class="brush: verilog">wire [9:0] array;</pre>
+<p>In this case, we would now have a 10-bit wire called array. Notice here I did not assign it a value.</p>
+<h3>Assigning a value</h3>
+<p>There are many times where you want to assign a value to a wire that is already declared somewhere else. In this case, you can use the&nbsp;<strong>assign</strong> keyword.</p>
+<pre class="brush: verilog; first-line: 26">assign spi_miso = 1'bz;
+assign avr_rx = 1'bz;
+assign spi_channel = 4'bzzzz;
+
+assign led = 8'b0;</pre>
+<p>Now is a good time to introduce constants in Verilog. A constant looks something like&nbsp;<strong>8'hD5</strong>,&nbsp;<strong>5'd61</strong>, or <strong>4'b0101</strong>. In these three cases, you can tell how many bits wide each constant is by the first number. The first one is 8 bits, the second 5, and the third 4. This is important because you usually want the constant's width to match the signal you are assigning it to.&nbsp;</p>
+<p>The second part of the constant is the base for the number. A&nbsp;<strong>h</strong> means the number is in hex, a&nbsp;<strong>d</strong> means it's decimal, and&nbsp;<strong>b</strong>&nbsp;means it's binary. The rest of the constant is the actual value.</p>
+<p>Now you may be looking at the assign statements and thinking "what the *&amp;$(* kind of value is z?" Well be confused no more, 0 and 1 are not the only values a wire can have! They can actually have one of four values,&nbsp;<strong>0</strong>,&nbsp;<strong>1</strong>,&nbsp;<strong>Z</strong>, and&nbsp;<strong>X</strong>. Z means that the wire is high-impedance, or disconnected. X means that we don't care about the value, or the value is unknown (when you do simulations).</p>
+<p>In this case, since we are not using the spi signals we disconnect them because driving them incorrectly could damage the microcontroller.&nbsp;</p>
+<p>Now, let's look at the last line. This is the one we care about. Right now we are just assigning led to be all 0s. That means all the LEDs will always be off! What fun is that? <strong>Let's make a small modification to that line.</strong></p>
+<pre class="brush: verilog; first-line: 30">assign led[6:0] = 7'b0;
+assign led[7] = rst;</pre>
+<p>Ok, so what is going on here? The assign is now modified to assign only the first 7 bits of <strong>led</strong> to 0. You can use the bracket notation to select a sub-part of your arrays.</p>
+<p>That leaves us free to assign the last bit to whatever we want! That's where the second line comes in. For this simple example, we are going to assign it to&nbsp;<strong>rst</strong>. That will&nbsp;<em>connect</em> the wire&nbsp;<strong>led[7]</strong> to&nbsp;<strong>rst</strong>.</p>
+<p>That concludes the modifications we are going to make so go ahead and save the file!</p>
+<h3>Creating a bin file</h3>
+<p>It is now time to take our project and create a bin file that we can load onto the Mojo. To do this, make sure that&nbsp;<strong>mojo_top (mojo_top.v)</strong> is selected under hierarchy. Underneath that you should see a panel labeled&nbsp;<strong>Processes: mojo_top</strong>. In that panel, double click on&nbsp;<strong>Generate Programming File</strong>. You should see a spinning thing start on&nbsp;<strong>Synthesize</strong> and move through the different stages.</p>
+<p><img style="width: 680px; height: 414px;" src="{{media url="wysiwyg/creating-a-project/ise_build.jpg"}}" alt="Project Built" /></p>
+<p>You will get warnings with this design. They are shown by giving a little ! in a yellow triangle. This is normal and if you double click on <strong>Design Summary/Reports</strong>&nbsp;in the&nbsp;<strong>Processes</strong> panel you should then see a summary of the build. In the top right, you should see&nbsp;<strong>26 Warnings</strong>. Click on that. If you scroll through the warnings you will notice that they are all caused by inputs and outputs in our design not being used. Since that was intentional we can ignore these.</p>
+<p>If you didn't get any errors and the&nbsp;<strong>Generate Programming File</strong> stage completed it is time to fire up Mojo Loader to load the bin file!</p>
+<h3>Loading the bin file</h3>
+<p>Once you open up Mojo Loader, select the serial port that the Mojo is connected to. For Windows this should be somethine like <strong>COM2</strong>. In Linux this will probably be&nbsp;<strong>/dev/ttyACM0</strong>, or something similar. It may take a few seconds to recognize the serial port so try opening the dropdown again if you don't see the port listed.</p>
+<p><span style="font-size: 12px; line-height: 1.5;">Then click&nbsp;</span><strong style="font-size: 12px; line-height: 1.5;">Open Bin File</strong><span style="font-size: 12px; line-height: 1.5;">&nbsp;and navigate to the&nbsp;</span><strong style="font-size: 12px; line-height: 1.5;">syn</strong><span style="font-size: 12px; line-height: 1.5;"> folder in the project folder. In there you should see a&nbsp;</span><strong style="font-size: 12px; line-height: 1.5;">mojo_top.bin</strong><span style="font-size: 12px; line-height: 1.5;"> file to select.</span></p>
+<p><img style="width: 450px; height: 176px;" src="{{media url="wysiwyg/mojo-loader/mojo_loader.jpg"}}" alt="Mojo Loader" /></p>
+<p>Click load and your design will begin to transfer to the Mojo!</p>
+<p>If it doesn't work, make sure you have the correct port selected and the board is plugged in.</p>
+<p>Once it has transferred, try pressing the reset button. When you push the button the LED closest to the button should light up.</p>
+<p>Congratulations, you've completed your first project!</p>

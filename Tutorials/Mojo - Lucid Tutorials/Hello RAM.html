@@ -1,0 +1,420 @@
+<p>In this tutorial we will be making some modifications to the Hello World! project from the last tutorial so make sure you have read the {{widget type="cms/widget_page_link" template="cms/widget/link/link_inline.phtml" page_id="65"}} first. We will be personalizing the greeter so that it first asks for your name and then prints "Hello NAME" where NAME is the name you entered. To do this we will need some form of memory and in this case we will use a single port RAM.</p>
+<h2>The RAM</h2>
+<p>We need to add the RAM component to our project. Go to <b>Project-&gt;Add Components...</b> and under <i>Memory</i> check off <i>Simple RAM</i>. While you have the component selector open, also add the <i>AVR Interface</i> (under <i>Interfaces</i>) since we will need that to send and receive data.</p>
+<p>Go ahead and open up <b>simple_ram.v</b>.</p>
+<pre class="brush:verilog;first-line:50">module simple_ram #(
+    parameter SIZE = 1,  // size of each entry
+    parameter DEPTH = 1  // number of entries
+  )(
+    input clk,                         // clock
+    input [$clog2(DEPTH)-1:0] address, // address to read or write
+    output reg [SIZE-1:0] read_data,   // data read
+    input [SIZE-1:0] write_data,       // data to write
+    input write_en                     // write enable (1 = write)
+  );
+
+  reg [SIZE-1:0] ram [DEPTH-1:0];      // memory array
+
+  always @(posedge clk) begin
+    read_data &lt;= ram[address];         // read the entry
+
+    if (write_en)                      // if we need to write
+      ram[address] &lt;= write_data;      // update that value
+  end
+
+endmodule</pre>
+<p>Note that this component is written in Verilog instead of Lucid. This is because the Xilinx tools are very picky when it comes to deciding if something is a block of RAM or not. By using this module we can ensure that our RAM is properly recognized as RAM. This is important because FPGAs actually have dedicated block RAM (also known as BRAM). If your RAM is big enough, the tools will use BRAM to implement it instead of the FPGA fabric. Using BRAM is both substantially faster and smaller than the FPGA fabric.</p>
+<p>A single port RAM like this works much the same as the ROM from the last tutorial. However, we now have the option to write to an address instead of only reading. To write to an address, we simply supply the address and data to write then set <i>write_en</i> to 1. The data at that address will then be updated to whatever <i>write_data</i> is.</p>
+<p>The parameters <i>SIZE</i> and <i>DEPTH</i> are used to specify how big we want the RAM to be. <i>SIZE</i> specifies how big each entry is. In our case we will be storing letters and a letter is 8 bits wide so SIZE will be set to 8. <i>DEPTH</i> is used to specify how many entries we want. This will be the maximum name length we can accept.</p>
+<h2>The Greeter (revisited)</h2>
+<p>Just like the last tutorial we will have a <i>greeter</i> module. The interface to this module is exactly the same as before but it is now a bit more mannered and will greet you personally.</p>
+<p>Like most tutorials, I'll post the entire module here and then break it down.</p>
+<pre class="brush:lucid;class-name:scroll">module greeter (
+    input clk,         // clock
+    input rst,         // reset
+    input new_rx,      // new RX flag
+    input rx_data[8],  // RX data
+    output new_tx,     // new TX flag
+    output tx_data[8], // TX data
+    input tx_busy      // TX is busy flag
+  ) {
+
+  const HELLO_TEXT = $reverse("\r\nHello @!\r\n"); // reverse so index 0 is the left most letter
+  const PROMPT_TEXT = $reverse("Please type your name: ");
+
+  .clk(clk) {
+    .rst(rst) {
+      fsm state = {IDLE, PROMPT, LISTEN, HELLO}; // our state machine
+    }
+
+    // we need our counters to be large enough to store all the indices of our text
+    dff hello_count[$clog2(HELLO_TEXT.WIDTH[0])]; // HELLO_TEXT is 2D so WIDTH[0] gets the first dimension
+    dff prompt_count[$clog2(PROMPT_TEXT.WIDTH[0])];
+
+    dff name_count[5]; // 5 allows for 2^5 = 32 letters
+    // we need our RAM to have an entry for every value of name_count
+    simple_ram ram (#SIZE(8), #DEPTH($pow(2,name_count.WIDTH)));
+  }
+
+
+  always {
+    ram.address = name_count.q; // use name_count as the address
+    ram.write_data = 8hxx;      // don't care
+    ram.write_en = 0;           // read by default
+
+    new_tx = 0;                 // default to no new data
+    tx_data = 8hxx;             // don't care
+
+    case (state.q) { // our FSM
+      // IDLE: Reset everything and wait for a new byte.
+      state.IDLE:
+        hello_count.d = 0;
+        prompt_count.d = 0;
+        name_count.d = 0;
+        if (new_rx) // wait for any letter
+          state.d = state.PROMPT;
+
+      // PROMPT: Print out name prompt.
+      state.PROMPT:
+        if (!tx_busy) {
+          prompt_count.d = prompt_count.q + 1;   // move to the next letter
+          new_tx = 1;                            // send data
+          tx_data = PROMPT_TEXT[prompt_count.q]; // send letter from PROMPT_TEXT
+          if (prompt_count.q == PROMPT_TEXT.WIDTH[0] - 1) // no more letters
+            state.d = state.LISTEN;              // change states
+        }
+
+      // LISTEN: Listen to the user as they type his/her name.
+      state.LISTEN:
+        if (new_rx) { // wait for a new byte
+          ram.write_data = rx_data;        // write the received letter to RAM
+          ram.write_en = 1;                // signal we want to write
+          name_count.d = name_count.q + 1; // increment the address
+
+          // We aren't checking tx_busy here that means if someone types super
+          // fast we could drop bytes. In practice this doesn't happen.
+          new_tx = rx_data != "\n" &amp;&amp; rx_data != "\r"; // only echo non-new line characters
+          tx_data = rx_data; // echo text back so you can see what you type
+
+          // if we run out of space or they pressed enter
+          if (&amp;name_count.q || rx_data == "\n" || rx_data == "\r") {
+            state.d = state.HELLO;
+            name_count.d = 0; // reset name_count
+          }
+        }
+
+      // HELLO: Prints the hello text with the given name inserted
+      state.HELLO:
+        if (!tx_busy) { // wait for tx to not be busy
+          if (HELLO_TEXT[hello_count.q] != "@") { // if we are not at the sentry
+            hello_count.d = hello_count.q + 1;    // increment to next letter
+            new_tx = 1;                           // new data to send
+            tx_data = HELLO_TEXT[hello_count.q];  // send the letter
+          } else {                                // we are at the sentry
+            name_count.d = name_count.q + 1;      // increment the name_count letter
+
+            if (ram.read_data != "\n" &amp;&amp; ram.read_data != "\r") // if we are not at the end
+              new_tx = 1;                                       // send data
+
+            tx_data = ram.read_data;              // send the letter from the RAM
+
+            // if we are at the end of the name or out of letters to send
+            if (ram.read_data == "\n" || ram.read_data == "\r" || &amp;name_count.q) {
+              hello_count.d = hello_count.q + 1;  // increment hello_count to pass the sentry
+            }
+          }
+
+          // if we have sent all of HELLO_TEXT
+          if (hello_count.q == HELLO_TEXT.WIDTH[0] - 1)
+            state.d = state.IDLE; // return to IDLE
+        }
+    }
+  }
+}
+</pre>
+<h3>No More ROM</h3>
+<p>So unlike last tutorial, we aren't going to use an explicit ROM module. This is because some convenient features of Lucid allow us to easily use constants with strings as ROMs. Let us take a look at the constant declaration.</p>
+<pre class="brush:lucid;first-line:11">  const HELLO_TEXT = $reverse("\r\nHello @!\r\n"); // reverse so index 0 is the left most letter
+  const PROMPT_TEXT = $reverse("Please type your name: ");
+</pre>
+<p>Here we are using a function called <i>$reverse()</i>. This function takes some constant expression and reverse the order of the top most dimension of the array. Since strings are 2D arrays with the top most dimension being the letter order, this is exactly the same as typing the string backwards like we did in the last tutorial. This is just a little bit cleaner and easier to deal with.</p>
+<p>Because strings are 2D arrays, we can simply use <i>HELLO_TEXT[i]</i> to access the <i>i</i>th letter of it.</p>
+<p>Note that we are using the @ symbol in place of a name. This will signal to our design where to insert the name that was recorded.</p>
+<h3>Modules and DFFs</h3>
+<p>Just like before we have an FSM <i>state</i>. This will store the current state of our module. <i>IDLE</i> is where we will start and it will initialize everything. <i>PROMPT</i> will print the prompt asking for your name. <i>LISTEN</i> will listen to you type your name and echo it back. Finally, <i>HELLO</i> will greet you personally.</p>
+<p>We need counters to keep track of what letter in each ROM we are currently positioned.</p>
+<pre class="brush:lucid;first-line:20">    dff hello_count[$clog2(HELLO_TEXT.WIDTH[0])]; // HELLO_TEXT is 2D so WIDTH[0] gets the first dimension
+    dff prompt_count[$clog2(PROMPT_TEXT.WIDTH[0])];
+</pre>
+<p>Let us take a look at <i>hello_count</i>. We need it to be wide enough so that we can index all the letters in HELLO_TEXT. We can get how many letters there are in the string by using the <i>WIDTH</i> attribute. Because <i>HELLO_TEXT</i> is a multi-dimensional array (2D in this case), <i>WIDTH</i> will be a 2D array. The first index of <i>WIDTH</i> is the number of indices in the first dimension of <i>HELLO_TEXT</i>. This is the number of letters. So we simply use <i>HELLO_TEXT.WIDTH[0]</i>. Note that the second dimension has a width of 8 since each letter is 8 bits wide.</p>
+<p>We can then use the <i>$clog2()</i> function as before to make sure it is large enough to store values from 0 to <i>HELLO_TEXT.WIDTH[0]</i>-1.</p>
+<p>Next take a look at <i>name_count</i>. This will be used to index into the RAM. We can set this width to be whatever we want, but the size of the RAM will grow exponentially with it. I set it to 5 which will allow for a name of 2<sup>5</sup>, or 32 letters long. We will play with this towards the end of the tutorial.</p>
+<p>We need the size of the RAM to match the size of <i>name_count</i>.</p>
+<pre class="brush:lucid;first-line:25">simple_ram ram (#WIDTH(8), #DEPTH($pow(2,name_count.WIDTH)));</pre>
+<p>Here we are using the function <i>$pow()</i> which takes two constants and returns the first to the power of the second. In this case, <i>name_count.WIDTH</i> is 5, so 2<sup>5</sup> is 32. By using <i>name_count.WIDTH</i> instead of typing in 5 or 32 directly, we ensure that if we change the width of <i>name_count</i> then everything will still work.</p>
+<h3>The FSM</h3>
+<p>The <i>IDLE</i> and <i>PROMPT</i> states should look very familiar to the last tutorial so we will jump to the <i>LISTEN</i> state.</p>
+<pre class="brush:lucid;first-line:56">      // LISTEN: Listen to the user as they type his/her name.
+      state.LISTEN:
+        if (new_rx) { // wait for a new byte
+          ram.write_data = rx_data;        // write the received letter to RAM
+          ram.write_en = 1;                // signal we want to write
+          name_count.d = name_count.q + 1; // increment the address
+
+          // We aren't checking tx_busy here that means if someone types super
+          // fast we could drop bytes. In practice this doesn't happen.
+          new_tx = rx_data != "\n" &amp;&amp; rx_data != "\r"; // only echo non-new line characters
+          tx_data = rx_data; // echo text back so you can see what you type
+
+          // if we run out of space or they pressed enter
+          if (&amp;name_count.q || rx_data == "\n" || rx_data == "\r") {
+            state.d = state.HELLO;
+            name_count.d = 0; // reset name_count
+          }
+        }
+</pre>
+<p>Here we wait until <i>new_rx</i> is 1. This signals that we have a new byte to process and that the data on <i>rx_data</i> is valid. We then write <i>rx_data</i> into our RAM. We are writing to the address specified by <i>name_count.q</i> as <i>ram.address</i> is set to this in the beginning of the always block.</p>
+<p>We also need to send the character we received back so that you can see your name as you type it. We simply set <i>new_tx</i> to 1 and <i>tx_data</i> to <i>rx_data</i>. Note that we aren't checking <i>tx_busy</i> so it is possible this byte will be dropped. However, in practice you can't type fast enough for this to be an issue. If you wanted to make this more robust you would need to buffer the received letters and send them out only when <i>tx_busy</i> was 0.</p>
+<p>The if statement is used to know when to stop. We have two conditions to stop on. The first is if we simply run out of space. To check of this we use <i>&amp;name_count.q</i>. The &amp; operator here <b>and</b>s all the bits of <i>name_count.q</i> together into a single bit. This tells us if all the bits of <i>name_count.q</i> are 1. The second condition is that the user pressed the enter key. We want to accept "\n" or "\r" as a stop character so we check for both.</p>
+<p>When we are moving onto the next state, notice that we reset <i>name_count</i>. This is so that we can start printing the name from the beginning.</p>
+<pre class="brush:lucid;first-line:75">      // HELLO: Prints the hello text with the given name inserted
+      state.HELLO:
+        if (!tx_busy) { // wait for tx to not be busy
+          if (HELLO_TEXT[hello_count.q] != "@") { // if we are not at the sentry
+            hello_count.d = hello_count.q + 1;    // increment to next letter
+            new_tx = 1;                           // new data to send
+            tx_data = HELLO_TEXT[hello_count.q];  // send the letter
+          } else {                                // we are at the sentry
+            name_count.d = name_count.q + 1;      // increment the name_count letter
+
+            if (ram.read_data != "\n" &amp;&amp; ram.read_data != "\r") // if we are not at the end
+              new_tx = 1;                                       // send data
+
+            tx_data = ram.read_data;              // send the letter from the RAM
+
+            // if we are at the end of the name or out of letters to send
+            if (ram.read_data == "\n" || ram.read_data == "\r" || &amp;name_count.q) {
+              hello_count.d = hello_count.q + 1;  // increment hello_count to pass the sentry
+            }
+          }
+
+          // if we have sent all of HELLO_TEXT
+          if (hello_count.q == HELLO_TEXT.WIDTH[0] - 1)
+            state.d = state.IDLE; // return to IDLE
+        }
+</pre>
+<p>In this state, we are going to use two counters, <i>hello_count</i> and <i>name_count</i>. First we will start by sending each letter of <i>HELLO_TEXT</i>. However, once we hit the "@" letter we will send all the letters in our RAM. Once that is done, we will finish sending the rest of <i>HELLO_TEXT</i>.</p>
+<p>Once everything has been sent, we return to the <i>IDLE</i> state to await another key press to start it all over again.</p>
+<h2>The Top Level</h2>
+<p>The <b>mojo_top.luc</b> file is exactly the same as last time since the interface to our <i>greeter</i> module is the same.</p>
+<pre class="brush:lucid;class-name:scroll">module mojo_top(
+    input clk,              // 50MHz clock
+    input rst_n,            // reset button (active low)
+    output led [8],         // 8 user controllable LEDs
+    input cclk,             // configuration clock, AVR ready when high
+    output spi_miso,        // AVR SPI MISO
+    input spi_ss,           // AVR SPI Slave Select
+    input spi_mosi,         // AVR SPI MOSI
+    input spi_sck,          // AVR SPI Clock
+    output spi_channel [4], // AVR general purpose pins (used by default to select ADC channel)
+    input avr_tx,           // AVR TX (FPGA RX)
+    output avr_rx,          // AVR RX (FPGA TX)
+    input avr_rx_busy       // AVR RX buffer full
+  ) {
+
+  .clk(clk), .rst(~rst_n){
+    // the avr_interface module is used to talk to the AVR for access to the USB port and analog pins
+    avr_interface avr;
+
+    greeter greeter; // instance of our greeter
+  }
+
+  always {
+    // connect inputs of avr
+    avr.cclk = cclk;
+    avr.spi_ss = spi_ss;
+    avr.spi_mosi = spi_mosi;
+    avr.spi_sck = spi_sck;
+    avr.rx = avr_tx;
+
+    // connect outputs of avr
+    spi_miso = avr.spi_miso;
+    spi_channel = avr.spi_channel;
+    avr_rx = avr.tx;
+
+    avr.channel = hf; // ADC is unused so disable
+    avr.tx_block = avr_rx_busy; // block TX when AVR is busy
+
+    greeter.new_rx = avr.new_rx_data;
+    greeter.rx_data = avr.rx_data;
+    avr.new_tx_data = greeter.new_tx;
+    avr.tx_data = greeter.tx_data;
+    greeter.tx_busy = avr.tx_busy;
+
+    led = 8h00;             // turn LEDs off
+  }
+}</pre>
+<h2>Building the Project</h2>
+<p>You should now be all set to build the project. Once the project has build successfully, load it onto your Mojo and fire up your favorite terminal program to test it out. Note that you have to send it a letter to get it to prompt you for your name.</p>
+<p>Here is some demo output.</p>
+<pre class="brush:plain">Please type your name: Justin
+Hello Justin!
+Please type your name: Steve
+Hello Steve!
+Please type your name: 01234567890123456789012345678901
+Hello 01234567890123456789012345678901!
+</pre>
+<p>Notice that the moment you type 32 letters it cuts you off and says hello.</p>
+<p>Once you've played with it a bit, look back at the output from the build. If you scroll up a bit from the bottom you should find something that looks like the following.</p>
+<pre class="brush:plain;class-name:scroll">Device Utilization Summary:
+
+Slice Logic Utilization:
+  Number of Slice Registers:                    96 out of  11,440    1%
+    Number used as Flip Flops:                  96
+    Number used as Latches:                      0
+    Number used as Latch-thrus:                  0
+    Number used as AND/OR logics:                0
+  Number of Slice LUTs:                        163 out of   5,720    2%
+    Number used as logic:                      157 out of   5,720    2%
+      Number using O6 output only:             123
+      Number using O5 output only:              12
+      Number using O5 and O6:                   22
+      Number used as ROM:                        0
+    Number used as Memory:                       5 out of   1,440    1%
+      Number used as Dual Port RAM:              0
+      Number used as Single Port RAM:            4
+        Number using O6 output only:             0
+        Number using O5 output only:             0
+        Number using O5 and O6:                  4
+      Number used as Shift Register:             1
+        Number using O6 output only:             1
+        Number using O5 output only:             0
+        Number using O5 and O6:                  0
+    Number used exclusively as route-thrus:      1
+      Number with same-slice register load:      0
+      Number with same-slice carry load:         1
+      Number with other load:                    0
+
+Slice Logic Distribution:
+  Number of occupied Slices:                    60 out of   1,430    4%
+  Number of MUXCYs used:                        16 out of   2,860    1%
+  Number of LUT Flip Flop pairs used:          174
+    Number with an unused Flip Flop:            84 out of     174   48%
+    Number with an unused LUT:                  11 out of     174    6%
+    Number of fully used LUT-FF pairs:          79 out of     174   45%
+    Number of slice register sites lost
+      to control set restrictions:               0 out of  11,440    0%
+
+  A LUT Flip Flop pair for this architecture represents one LUT paired with
+  one Flip Flop within a slice.  A control set is a unique combination of
+  clock, reset, set, and enable signals for a registered element.
+  The Slice Logic Distribution report is not meaningful if the design is
+  over-mapped for a non-slice resource or if Placement fails.
+
+IO Utilization:
+  Number of bonded IOBs:                        22 out of     102   21%
+    Number of LOCed IOBs:                       22 out of      22  100%
+
+Specific Feature Utilization:
+  Number of RAMB16BWERs:                         0 out of      32    0%
+  Number of RAMB8BWERs:                          0 out of      64    0%
+  Number of BUFIO2/BUFIO2_2CLKs:                 0 out of      32    0%
+  Number of BUFIO2FB/BUFIO2FB_2CLKs:             0 out of      32    0%
+  Number of BUFG/BUFGMUXs:                       1 out of      16    6%
+    Number used as BUFGs:                        1
+    Number used as BUFGMUX:                      0
+  Number of DCM/DCM_CLKGENs:                     0 out of       4    0%
+  Number of ILOGIC2/ISERDES2s:                   0 out of     200    0%
+  Number of IODELAY2/IODRP2/IODRP2_MCBs:         0 out of     200    0%
+  Number of OLOGIC2/OSERDES2s:                   0 out of     200    0%
+  Number of BSCANs:                              0 out of       4    0%
+  Number of BUFHs:                               0 out of     128    0%
+  Number of BUFPLLs:                             0 out of       8    0%
+  Number of BUFPLL_MCBs:                         0 out of       4    0%
+  Number of DSP48A1s:                            0 out of      16    0%
+  Number of ICAPs:                               0 out of       1    0%
+  Number of MCBs:                                0 out of       2    0%
+  Number of PCILOGICSEs:                         0 out of       2    0%
+  Number of PLL_ADVs:                            0 out of       2    0%
+  Number of PMVs:                                0 out of       1    0%
+  Number of STARTUPs:                            0 out of       1    0%
+  Number of SUSPEND_SYNCs:                       0 out of       1    0%
+</pre>
+<p>This tells you how much of the FPGA your design is using. The two most important numbers are typically the slice register and slice LUT usage. You can see in our case we are using about 2% of the space in the FPGA!</p>
+<p>The reason we are looking at this is to see how the RAM was implemented in the FPGA. Remember the FPGA has blocks of RAM that we can use? These are shown under <b>Specific Feature Utilization</b>. <b>RAMB16BWER</b> and <b>RAMB8BWER</b> are the two types of BRAM we can use. But wait! We aren't using any! This is because our RAM is too small to warrant its own BRAM.</p>
+<p>If we go back to where <i>name_count</i> is declared and make it bigger, we can increase the RAM size.</p>
+<pre class="brush:lucid;first-line:23">    dff name_count[8]; // 8 allows for 2^8 = 256 letters</pre>
+<p>If you build the project again with the bigger RAM, you will get the following.</p>
+<pre class="brush:plain;class-name:scroll">Device Utilization Summary:
+
+Slice Logic Utilization:
+  Number of Slice Registers:                    90 out of  11,440    1%
+    Number used as Flip Flops:                  90
+    Number used as Latches:                      0
+    Number used as Latch-thrus:                  0
+    Number used as AND/OR logics:                0
+  Number of Slice LUTs:                        144 out of   5,720    2%
+    Number used as logic:                      140 out of   5,720    2%
+      Number using O6 output only:             107
+      Number using O5 output only:              12
+      Number using O5 and O6:                   21
+      Number used as ROM:                        0
+    Number used as Memory:                       1 out of   1,440    1%
+      Number used as Dual Port RAM:              0
+      Number used as Single Port RAM:            0
+      Number used as Shift Register:             1
+        Number using O6 output only:             1
+        Number using O5 output only:             0
+        Number using O5 and O6:                  0
+    Number used exclusively as route-thrus:      3
+      Number with same-slice register load:      2
+      Number with same-slice carry load:         1
+      Number with other load:                    0
+
+Slice Logic Distribution:
+  Number of occupied Slices:                    48 out of   1,430    3%
+  Number of MUXCYs used:                        16 out of   2,860    1%
+  Number of LUT Flip Flop pairs used:          152
+    Number with an unused Flip Flop:            70 out of     152   46%
+    Number with an unused LUT:                   8 out of     152    5%
+    Number of fully used LUT-FF pairs:          74 out of     152   48%
+    Number of slice register sites lost
+      to control set restrictions:               0 out of  11,440    0%
+
+  A LUT Flip Flop pair for this architecture represents one LUT paired with
+  one Flip Flop within a slice.  A control set is a unique combination of
+  clock, reset, set, and enable signals for a registered element.
+  The Slice Logic Distribution report is not meaningful if the design is
+  over-mapped for a non-slice resource or if Placement fails.
+
+IO Utilization:
+  Number of bonded IOBs:                        22 out of     102   21%
+    Number of LOCed IOBs:                       22 out of      22  100%
+
+Specific Feature Utilization:
+  Number of RAMB16BWERs:                         0 out of      32    0%
+  Number of RAMB8BWERs:                          1 out of      64    1%
+  Number of BUFIO2/BUFIO2_2CLKs:                 0 out of      32    0%
+  Number of BUFIO2FB/BUFIO2FB_2CLKs:             0 out of      32    0%
+  Number of BUFG/BUFGMUXs:                       1 out of      16    6%
+    Number used as BUFGs:                        1
+    Number used as BUFGMUX:                      0
+  Number of DCM/DCM_CLKGENs:                     0 out of       4    0%
+  Number of ILOGIC2/ISERDES2s:                   0 out of     200    0%
+  Number of IODELAY2/IODRP2/IODRP2_MCBs:         0 out of     200    0%
+  Number of OLOGIC2/OSERDES2s:                   0 out of     200    0%
+  Number of BSCANs:                              0 out of       4    0%
+  Number of BUFHs:                               0 out of     128    0%
+  Number of BUFPLLs:                             0 out of       8    0%
+  Number of BUFPLL_MCBs:                         0 out of       4    0%
+  Number of DSP48A1s:                            0 out of      16    0%
+  Number of ICAPs:                               0 out of       1    0%
+  Number of MCBs:                                0 out of       2    0%
+  Number of PCILOGICSEs:                         0 out of       2    0%
+  Number of PLL_ADVs:                            0 out of       2    0%
+  Number of PMVs:                                0 out of       1    0%
+  Number of STARTUPs:                            0 out of       1    0%
+  Number of SUSPEND_SYNCs:                       0 out of       1    0%
+</pre>
+<p>Notice that we are using a <b>RAMB8BWER</b> now. Also notice that the number of registers and LUTs we are using went down. This is because we are using the BRAM instead of the general fabric.</p>
+<p>This is why it is important to use the <i>simple_ram</i> component that implements the template Xilinx's tools look for. If we used a different coding style the tools may not recognize that it could use BRAM and we could quickly fill up the FPGA with a large RAM that would otherwise take very little space.</p>

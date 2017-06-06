@@ -1,0 +1,447 @@
+<p>Lucid is a new <strong>HDL</strong> (<strong>H</strong>ardware <strong>D</strong>escription<strong> L</strong>anguage) that is designed to make it easier to work with FPGAs. This is realized by not relying on "templates" for flip-flops and finite state machines, reducing the amount of code that has to be written, and real time error checking via the Mojo IDE.</p>
+<p>Lucid is based on Verilog but pulls some syntax from C++/Java.</p>
+<h1>
+    Books
+</h1>
+<p>
+    Check out the official Lucid beginner's book written by Justin Rajewski, Lucid's creator. <a  href="https://www.amazon.com/gp/product/1491965495/ref=as_li_tl?ie=UTF8&camp=1789&creative=9325&creativeASIN=1491965495&linkCode=as2&tag=embeddedmicro-20&linkId=745ad9885a2f03765aae3c5e62413b9d">Learning FPGAs: Digital Design for Beginners with Mojo and Lucid HDL</a><img src="//ir-na.amazon-adsystem.com/e/ir?t=embeddedmicro-20&l=am2&o=1&a=1491965495" width="1" height="1" border="0" alt="" style="border:none !important; margin:0px !important;" />
+</p>
+<h1>Getting Started with Lucid</h1>
+<p>To start working with Lucid you need the Mojo IDE. You will also need to install Xilinx's tool called ISE to be able to build your projects. ISE can take a while to download so start it early. Checkout <a href="/tutorials/mojo-software-and-updates/installing-ise">this tutorial</a> for more information on installing ISE.</p>
+<p>To install the Mojo IDE, download the latest version from the <a href="/tutorials/mojo-software-and-updates/mojo-ide">Mojo IDE page</a>.</p>
+<p>Once you have the Mojo IDE installed you can start the <a href="/tutorials/lucid/your-first-fpga-project">first tutorial</a> while you download ISE. Just note that you will have to wait for ISE to be installed before you can build your project and program the FPGA.</p>
+<h1>Reference Guide</h1>
+<h2>Modules</h2>
+<p>A typical Lucid file consists of a single module declaration. A module declaration consists of the <b>module</b> keyword, the module's name, an optional parameter list, a port list, and the module's body.</p>
+<pre class="brush:lucid">module my_module #(SIZE = 4)(
+    input clk,
+    input rst,
+    input value_in,
+    output value_out
+  ){
+ ... body ... 
+}
+</pre>
+<p>In this example, a module with a name of <i>my_module</i> is declared.</p>
+<h3>Parameter List</h3>
+<p>This module uses the optional parameter list to declare a parameter named SIZE with a default value of 4. The parameter list is designated by <i>#( ... parameters ... )</i>. More than one parameter can be specified by separating them by commas.</p>
+<p>The default value of a parameter is optional. If a default value is not specified, the value must be specified later when the module is used. However, if the default value is specified it can still be overloaded later when the module is used. It is best practice to give a reasonable default value when possible.</p>
+<p>Since parameters can be overloaded, unless any value can be used, it is often helpful to add a constraint. The constraint will be evaluated whenever your module is used and throw an error if it's not met. The syntax for a constraint is parameter : constraint. For example, we likely would want to constrain SIZE, from the previous example, to be greater than zero.</p>
+<pre class="brush:lucid">module my_module #(
+    SIZE = 4 : SIZE &gt; 0
+  )(
+    input clk,
+    input rst,
+    input value_in,
+    output value_out
+  ){
+ ... body ... 
+}
+</pre>
+<h3>Port List</h3>
+<p>Each signal that is passed in or out of a module is declared in it's port list. A signal can have one of three types: <i>input</i>, <i>output</i>, or <i>inout</i>. Any of these types can be an array.</p>
+<p><b>Inputs</b> are read only inside the module. Their value is supplied externally.</p>
+<p><b>Outputs</b> are write only inside the module. They are used to pass values out.</p>
+<p><b>Inouts</b> are special since they can be read and written, but not directly. They are not typically used except at the top level for signals that can be tri-stated (to talk to an I2C device, for example). To read from an inout named my_inout you can use the element my_inout.read. To write, you write to the element my_inout.write. However, for the value of my_inout.write to be driven, you need to set my_inout.en to 1. When it is 0, my_inout is tri-stated.</p>
+<h3>Body</h3>
+<p>The body of a Lucid file generally consists of a series of variable declarations, module instantiations, and always blocks. These will all be covered in more detail in later sections.</p>
+<h2>Numbers</h2>
+<p>There are a few ways to specify a number in Lucid.</p>
+<p>The first way is to just type the number as you would anywhere else. For example, 9.</p>
+<p>Sometimes it's easier to specify a number with a different radix than 10 (the implied default). Lucid supports three different radix, 10 (decimal), 16 (hexadecimal), and 2 (binary). To specify the radix, prepend d, h, or b to specify decimal, hexadecimal, or binary respectively. For example, hFF has the decimal value 255 and <i>b100</i> has the decimal value 4. If you don&rsquo;t append a radix indicator, decimal is assumed.</p>
+<p>It is important to remember that all numbers will be represented as bits in your circuit. When you specify a number this way, the width of the number will be the minimum number of bits required to represent that value for decimal. For binary, it is simply the number of digits and for hexadecimal it is four times the number of digits. For example, the value 7 will be three bits wide (111), <i>b1010</i> will be four bits wide, and <i>hACB</i> will be 12 bits wide.</p>
+<p>Sometimes you need more control over the exact width of a number. In those cases you can specify the number of bits by prepending the number of bits and radix to the value. For example <i>4d2</i> will be the value 2 but using 4 bits instead of the minimum 2 (binary value 0010 instead of 10). You must specify the radix when specifying the width to separate the width from the value.</p>
+<p>If you specify a width smaller than the minimum number of bits required, the number will drop the most significant bits. When this happens you will get a warning.</p>
+<h2>Strings</h2>
+<p>Strings are simply a series of characters enclosed between quotes.</p>
+<pre class="brush:lucid">"This is a string!"</pre>
+<p>Each letter in a string is the 8 bit representation of that letter. If a string consists of more than one letter, the string becomes two dimensional. The first dimension specifies which letter and the second is the bits of that letter. This allows for easy indexing of specific letters.</p>
+<p>Similar to numbers, the right most letter is the first index. Below is an example of a specific letter being indexed.</p>
+<pre class="brush:lucid">const MY_STRING = "Hello";
+...
+if (MY_STRING[3] == "e") { // this is true
+  ...
+}</pre>
+<h2>Variable Types</h2>
+<p>There are a handful of variable types that are used in Lucid. They all serve a different purpose and are intended to make your intent clear.</p>
+<h3>Signals <i>(sig)</i></h3>
+<p>The variable type <i>sig</i>, which is short for signal, is used to temporarily hold the value of some operation. Signal names must start with a lowercase letter and consist only of letters (upper and lower), numbers, and underscores.</p>
+<p>Signals can be arrays.</p>
+<p>Example sig declaration.</p>
+<pre class="brush:lucid">sig sum[16];
+</pre>
+<h3>D-type Flip Flops <i>(dff)</i></h3>
+<p>Flip flops are the basic memory element used in FPGA designs. They are used to hold a constant value between clock cycles (see <a href="/tutorials/lucid/synchronous-logic-tutorial">here for more info</a>). Their name must start with a lowercase letter and consist only of letters (upper and lower), numbers, and underscores.</p>
+<p>Unlike other HDLs, flip flops can be instantiated directly in Lucid by using the type <i>dff</i>.</p>
+<p>Dff&rsquo;s require that a clock signal be specified at the time of instantiation.</p>
+<p>They have three inputs, <i>clk</i>, <i>rst</i>, and <i>d</i>. The <i>rst</i> and <i>clk</i> inputs can currently only be specified when the <i>dff</i> is being instantiated. The <i>rst</i> input is optional and does not need to be used if you don&rsquo;t need a reset. When used, the reset is active high. The <i>d</i> input servers as the input value to the flip flop.</p>
+<p>Dff&rsquo;s have only one output, <i>q</i>. This output reflects the value of <i>d</i> from the previous rising edge of <i>clk</i>. If <i>rst</i> has been activated, the value of <i>q</i> will be set to the value of the parameter <i>INIT</i>.</p>
+<p>Dff&rsquo;s have one parameter, <i>INIT</i>. This is an optional parameter and it specifies the value the flip flop will initialize to at power up and reset. If <i>INIT</i> is not provided, a default value of 0 is used.</p>
+<p>Dff&rsquo;s can be arrays.</p>
+<p>Example <i>dff</i> instantiation.</p>
+<pre class="brush:lucid">dff ctr[8](.clk(clk), .rst(rst));
+</pre>
+<h3>Finite State Machines <i>(fsm)</i></h3>
+<p>Lucid provides the type <i>fsm</i> for create finite state machines. This type is there to make it easy to declare and maintain the states used and prevent mistakes when assigning states. Their name must start with a lowercase letter and consist only of letters (upper and lower), numbers, and underscores.</p>
+<p>An <i>fsm</i> is similar to a <i>dff</i> in that it has the same three inputs, <i>clk</i>, <i>rst</i>, <i>d</i>, the same output, <i>q</i>, and the same parameter, <i>INIT</i>. They behave the same way as a <i>dff</i> with <i>rst</i> being optional and <i>clk</i> and <i>rst</i> needing to be specified at declaration.</p>
+<p>What makes an <i>fsm</i> different is that it has associated states. A list of states must be provided when the <i>fsm</i> is declared. State names must start with a capital letter and can only consist of capital letters, numbers, and underscores.</p>
+<p>If <i>INIT</i> is not specified. The first state is used.</p>
+<p>If multiple <i>fsms</i> are used, they can have states that have the same name as the states are scoped to a single <i>fsm</i>.</p>
+<p><i>Fsms</i> can be arrays.</p>
+<p>Example <i>fsm</i> declaration.</p>
+<pre class="brush:lucid">fsm state(.clk(clk), #INIT(RUN)) = {IDLE, START, RUN, STOP};
+</pre>
+<p>Example <i>fsm</i> state assignment</p>
+<pre class="brush:lucid">state.d = state.START;
+</pre>
+<h3>Variables <i>(var)</i></h3>
+<p>Variables are used only to make it easier to write code. They are not present directly in the synthesized circuit. The only current use case for them is as the loop index of a for loop. Their name must start with a lowercase letter and consist only of letters (upper and lower), numbers, and underscores.</p>
+<p>Variables can be arrays.</p>
+<p>Example <i>var</i> declaration.</p>
+<pre class="brush:lucid">var index;
+</pre>
+<h3>Constants <i>(const)</i></h3>
+<p>Constants are used when it is more convenient, or clear, to replace a number with a name. For example, if your module has many places a number shows up that may need to be changed later, it is often easier to use a constant so you only have to change the value in one place.</p>
+<p>Like the states of an <i>fsm</i>, constants must start with an uppercase letter and consist only of uppercase letters, numbers, and underscores. Their value must also be specified at the time of declaration.</p>
+<p>Constants cannot be arrays.</p>
+<p>Example <i>const</i> declaration.</p>
+<pre class="brush:lucid">const MAX_VALUE = 100;
+</pre>
+<h2>Arrays</h2>
+<p>Arrays in Lucid are designed to be as flexible as possible. To create a multi-bit signal simply append [x] to the end of the signal name, where x is the number of bits.</p>
+<p>Arrays can also be multi-dimensional. For example, to create a 3D array, the following could be used.</p>
+<pre class="brush:lucid">sig my_array[2][4][8];
+</pre>
+<p>This creates a <i>2x4x8</i> array of bits, or a <i>2x4</i> array of bytes (8 bits) depending how you think of it.</p>
+<p>To access elements of an array simply provide the indexes.</p>
+<pre class="brush:lucid">my_array[1][3][7];
+</pre>
+<p>These indexes point to the last element in the array since they are zero-indexed (index 0 is the first value). It is also possible to select multiple bits.</p>
+<pre class="brush:lucid">my_array[1][3];
+</pre>
+<p>This will select the last 8 bits of the array.</p>
+<p>To select only a partial number of bits, you can use bit selectors.</p>
+<h3>Bit Selectors</h3>
+<p>Bit selectors are used to select a sub-array. They can be used as the last index into an array.</p>
+<p>The most basic selector is the explicit selector. The explicit selector has the format <i>[top:bottom]</i> where top is the highest index and bottom is the lowest index, inclusive, to be selected.</p>
+<p>There are two other selectors: up-from and down-from. These are selectors that have the format <i>[start+:bits]</i> and <i>[start-:bits]</i>, respectively. Here, start specifies the starting bit and bits specifies how many bits to include. With the up-from selector, the bits from start and bits above it are selected. With the down-from selector, the bits from start and bits below it are selected.</p>
+<p>The following examples select the middle 4 bits (5,4,3,2) of our previous 8 bits.</p>
+<pre class="brush:lucid">my_array[1][3][5:2]; // explicit selector
+my_array[1][3][2+:4]; // up-from selector
+my_array[1][3][5-:4]; // down-from selector
+</pre>
+<p>These are all equivalent in this example. However, it is important to note that the explicit selector cannot be used with signals as an index. To use a signal to select multiple bits you must use the up-from or down-from selectors with bits set to a constant. This is to ensure that the resulting selection has a constant width, as a varying width array is impossible to implement in hardware.</p>
+<h3>Array Builder</h3>
+<p>Sometimes it can be convenient to build arrays out of constants, or other values. This is when the array builder comes in handy. The array builder has the syntax <i>{ val, val, val, ..., val }</i>, where each val can be any value as long as all <i>vals</i> have the same width and dimensions.</p>
+<p>Multiple array builder's can be nested to create multidimensional arrays.</p>
+<h3>Array Concatenation</h3>
+<p>You can concatenate two arrays together by using the syntax <i>c{ arr1, arr2, arr3, ..., arrN }</i>. Each element in the concatenation must have the same dimensions but not necessarily the same initial width. For example the following is allowed.</p>
+<pre class="brush:lucid">sig arr1[4][8][5];
+sig arr2[5][8][5];
+sig result[9][8][5];
+...
+result = c{arr1, arr2};
+</pre>
+<p>In this example <i>arr2</i> is stuck at the lower end of the array. That means <i>result[4:0]</i> corresponds to <i>arr2</i> and <i>result[8:5]</i> corresponds to <i>arr1</i>.</p>
+<h3>Array Duplication</h3>
+<p>Arrays can be duplicated into larger arrays with the syntax <i>M x{ arr }</i>, where <i>M</i> is the number of times to duplicate the array. The space between the <i>M</i> and <i>x{</i> is optional and typically left out when <i>M</i> is a number.</p>
+<p>This operation is the same as using the concatenation operator with the same element specified <i>M</i> times. This just allows for a more compact notation. See the following for an example.</p>
+<pre class="brush:lucid">sig arr[8];
+...
+3x{arr} == c{arr, arr, arr};
+</pre>
+<h3>Assigning Arrays</h3>
+<p>If two arrays have the same width and dimensions, they can simply be assigned to one another.</p>
+<pre class="brush:lucid">sig x[8][4];
+sig y[8][4];
+...
+x = y; // each element is assigned
+</pre>
+<h3>Array Width</h3>
+<p>To get the width of an array you can use the <i>WIDTH</i> attribute. If the array is a single dimension then WIDTH will simply be a number. However, if the array is multi-dimensional then WIDTH will be a 2D array with each element corresponding to its respective dimension.</p>
+<p>For example, if we declare a signal <i>y</i> as follows, then <i>y.WIDTH[0]</i> is equal to 8 and <i>y.WIDTH[1]</i> is equal to 4.</p>
+<pre class="brush:lucid">sig y[8][4];
+</pre>
+<h2>Instantiations</h2>
+<p>When instantiation a <i>module</i>, <i>dff</i>, or <i>fsm</i>, there are two ways to specify parameters and certain inputs. They are direct connections, and connection blocks.</p>
+<h3>Direct Connections</h3>
+<p>Direct connections are local to a single instance and the list of connections and parameters comes directly after the item to be instantiated. The following example is for a counter module.</p>
+<pre class="brush:lucid">counter myCounter(#WIDTH(8), .clk(clk2), .rst(rst2));
+</pre>
+<p>In this example, <i>myCounter</i> is a <i>module</i> with type <i>counter</i>. The parameter <i>WIDTH</i> is set to 8, the input <i>clk</i> is connected to <i>clk2</i>, and the input <i>rst</i> is connected to <i>rst2</i>. The ordering of the list doesn&rsquo;t matter. Parameters are designated by <i>#NAME</i>, while inputs are <i>.NAME</i>.</p>
+<p>Note that in general you do not have to connect any inputs and they can be assigned later on in an always block. This is simply a way to easily connect basic inputs, like clock and reset.</p>
+<p>If you instantiate an array of something, the inputs are treated as being connected to each individual element. For example, if we were to instantiate an array of counters as follows, then <i>clk</i> and <i>rst</i> will be connected to each counter's <i>clk</i> and <i>rst</i> inputs.</p>
+<pre class="brush:lucid">counter myCounter[8](#WIDTH(8), .clk(clk), .rst(rst));
+</pre>
+<p>If we didn't connect them here, but rather later in an always block (covered in the next section), the inputs would be joined into an array.</p>
+<pre class="brush:lucid">counter myCounter[8](#WIDTH(8));
+
+always {
+    myCounter.clk = 8x{clk};
+    myCounter.rst = 8x{rst};
+}
+</pre>
+<p>You can see here we had to expand <i>clk</i> and <i>rst</i> into 8 bit arrays to match those of the signals <i>myCounter.clk</i> and <i>myCounter.rst</i>.</p>
+<h3>Connection Blocks</h3>
+<p>The second way to specify connections and parameters is through connection blocks. These are simply a shorthand way to specify the same connection for many <i>modules</i>, <i>dffs</i>, or <i>fsms</i> at the same time. Here is an example.</p>
+<pre class="brush:lucid">.clk(clk), rst(rst) {
+  dff myDff1;
+  dff myDff2;
+  counter myCounter[8](#WIDTH(7));
+}
+</pre>
+<p>This is equivalent to adding the connections to each instance individually, but helps reduce redundancy and clean up the code. You can also nest these blocks.</p>
+<pre class="brush:lucid">.clk(clk) {
+  rst(rst) {
+    dff myDff1;
+  }
+  dff myDff2;
+}
+</pre>
+<p>Here <i>myDff1</i> is connected to <i>rst</i> and <i>clk</i>, while <i>myDff2</i> only has <i>clk</i> connected. This is useful for specifying <i>dffs</i> that have resets and others that don&rsquo;t need them. It is best practice to only use resets when you need them.</p>
+<h2>Always Block</h2>
+<p>An always block is where the bulk of your code resides. This block is used to group a section of combinational logic together. The syntax for an always block is as follows.</p>
+<pre class="brush:lucid">always block
+</pre>
+<p>Inside the block you can describe combinational logic by using various control statements and operators. The most important characteristic of the always block is the ability to assign signals values.</p>
+<p>The block can consist of a single statement, or a set of statements grouped by <i>{ }</i>.</p>
+<h3>Assignments</h3>
+<p>An always block is interpreted from top to bottom with statements that happen lower having priority over previous statements. An always block runs instantaneously, meaning if you assign a signal two different values, that signal will only ever show the last value assigned to everything outside the always block. See the following example.</p>
+<pre class="brush:lucid">module example (
+    output led
+  ) {
+
+  always {
+    led = 0;
+    led = 1;
+  }
+}
+</pre>
+<p>In this example, if the output <i>led</i> was connected to an actual LED and we probed it with an oscilloscope, the signal would be consistently 1. It would never have the value 0, not even for an undetectable amount of time.</p>
+<p>A signal can only be assigned in one always block. For example, the following is illegal.</p>
+<pre class="brush:lucid">module example (
+    output led
+  ){
+
+  always led = 0;
+  always led = 1; // can't assign led in different blocks
+}
+</pre>
+<p>This is because this would result in multiple drivers and the value of <i>led</i> would be ambiguous.</p>
+<h3>Sigs in Always Blocks</h3>
+<p>In an always block, <i>sig</i> types can be read and written. They must however, always be written before being read (otherwise they have no value). The value of the <i>sig</i> is whatever value was last written to it excluding any statements that come after the read. Take a look at the following example.</p>
+<pre class="brush:lucid">  sig mySig;
+
+  always {
+    mySig = 0;
+    led1 = mySig;
+    mySig = 1;
+    led2 = mySig;
+  }
+</pre>
+<p>In this example, <i>led1</i> will be connected to 0, while <i>led2</i> will be connected to 1. However, if you read <i>mySig</i> outside of the always block, it will always have the value 1 (in this case). If the value of a signal is used outside the always block, then it must be assigned a value at all times. The easiest way to ensure this is to assign a default value at the beginning of the always block.</p>
+<pre class="brush:lucid">  sig mySig;
+
+  always {
+    if (button)
+      mySig = 1;
+  }
+
+  always {
+    led = mySig; // illegal to use mySig here
+  }
+</pre>
+<p>In the above example, it is illegal to use <i>mySig</i> in the second always block because if <i>button</i> is 0, it won't have a value. However, either of the following are allowed.</p>
+<pre class="brush:lucid">  sig mySig;
+
+  always {
+    mySig = 0;   // default value
+    if (button)
+      mySig = 1;
+  }
+
+  always {
+    led = mySig; // mySig always has a known value here = ok to use
+  }
+</pre>
+<pre class="brush:lucid">  sig mySig;
+
+  always {
+    led = 0;       // default value
+
+    if (button) {
+      mySig = 1;
+      led = mySig; // mySig always has a known value here = ok to use
+    }
+  }
+</pre>
+<h3>If Statements</h3>
+<p>If statements are used to conditionally do something. They have the following syntax.</p>
+<pre class="brush:lucid">if (expression) block else block
+</pre>
+<p>The <i>block</i> can consist of a single statement, or a set of statements grouped by <i>{ }</i>.</p>
+<p>If the expression evaluates to anything other than 0, the statements in the block are considered. If the expression is equal to 0, the statements are ignored.</p>
+<p>The <i>else</i> clause is optional. If it is included, the statements in its block are considered only when the first block is ignored. The following is an example.</p>
+<pre class="brush:lucid">module example (
+    input button,
+    output led
+  ) {
+
+  always {
+    if (button) {
+      led = 1;
+    } else {
+      led = 0;
+    }
+  }
+}
+</pre>
+<p>The signal, <i>led</i>, will only be 1 when the button signal is 1. Otherwise, it will be 0.</p>
+<p>The same behavior could have been achieved with the following.</p>
+<pre class="brush:lucid">module example (
+    input button,
+    output led
+  ) {
+
+  always {
+    led = 0;
+    if (button) 
+      led = 1;
+  }
+}
+</pre>
+<p>In this example, the value of <i>led</i> defaults to 0. However, if <i>button</i> is 1, <i>led</i> is set to 1.</p>
+<p>It is important that a signal that is assigned in an if statement is assigned a value in all cases. For example, if the <i>led = 0;</i> line was taken out of the above example, when button is 0, led would never be assigned. This is illegal. To avoid this, either cover all cases with an else clause or assign a value before the if statement.</p>
+<h3>Case Statements</h3>
+<p>Case statements are used to select a block of statements out of a group based on the value of some expression. They are equivalent to a series of if else statements but are simply a cleaner way to express the selection.</p>
+<p>The syntax for a case statement is as follows.</p>
+<pre class="brush:lucid">case (expr) {
+  const: statements
+  const: statements
+  const: statements
+  const: statements
+  default: statements
+}
+</pre>
+<p>Here, <i>statements</i> can be a single statement or a series of statements.</p>
+<p>A group of statements are evaluated if <i>expr</i> is equal to <i>const</i>. The default selector is a special case and is matched only if no other cases match.</p>
+<p>Below is an example use of a case statement.</p>
+<pre class="brush:lucid">module decoder(
+    input in[2],
+    output out[4]
+  ) {
+
+  always{
+    case (in) {
+      0: out = 4b0001;
+      1: out = 4b0010;
+      2: out = 4b0100;
+      3: out = 4b1000;
+      default: out = 4bxxxx;
+    }
+  }
+}
+</pre>
+<p>Similarly to if statements, it is important to remember that a value needs to be assigned under all conditions. This can be achieved by including a default selector or by writing a value before the case statement. In the above example, since we never expect the default selector to be used, we set <i>out</i> to x's which means we don&rsquo;t care what value they get. This is helpful for the synthesizer since it can choose to assign it whatever is most optimal.</p>
+<h3>For Statements</h3>
+<p>For statements are used as shorthand when something needs to be repeated.</p>
+<p>A for loop has the following syntax.</p>
+<pre class="brush:lucid">for (var = const; var op const; expr) block
+</pre>
+<p>Again, here, <i>block</i> can be a single statement or a series of statements grouped by <i>{ }</i>.</p>
+<p><i>var</i> is a variable.</p>
+<p>The first <i>const</i> is the variable's initial value.</p>
+<p><i>op</i> can be any comparison operator, &gt;, &lt;, ==, !=, &gt;=, &lt;=.</p>
+<p>The second <i>const</i> is used to compare against the variable.</p>
+<p><i>expr</i> is the loop increment.</p>
+<p>The overall picture is the first statement sets the initial value of the variable, the second statement sets the condition to continue the loop, and the last statement specifies how the variable changes each iteration.</p>
+<p>It is important to remember that a for loop can always be replaced by simply writing out each iteration of the loop. In other words, the loop needs to be unravelable. That means that at synthesis time the tools need to be able to figure out exactly how many times the loop will execute and what the value of var will be for each iteration. If you can't manually duplicate <i>block</i> and replace <i>var</i> with each value then the for loop can't be realized in hardware.</p>
+<p>This is easily guaranteed by requiring you to use constants for the initialization, comparison, and increment statements.</p>
+<p>The reason for this requirement is because this will eventually be turned into hardware by duplicating the circuit over and over. If the tools can't determine how many times to duplicate the circuit, the circuit can't be produced.</p>
+<p>Below is an example of a for loop.</p>
+<pre class="brush:lucid">sig values[8][8];
+var i;
+
+always {
+  for (i = 0; i &lt; 8; i++) {
+    values[i] = i;
+  }
+}
+</pre>
+<p>This loop could also be rewritten as the following</p>
+<pre class="brush:lucid">sig values[8][8];
+
+always {
+  values[0] = 0;
+  values[1] = 1;
+  values[2] = 2;
+  values[3] = 3;
+  values[4] = 4;
+  values[5] = 5;
+  values[6] = 6;
+  values[7] = 7;
+}
+</pre>
+<p>However, as you can tell, the for loop makes it a lot more compact.</p>
+<h2>Expressions</h2>
+<p>An expression is something that can be evaluated to a single value. They can include signals and their values may change overtime (as your circuit operates). This can be something like <i>x*y</i>, where it has a single value that can be computed.</p>
+<p>The following are operators that can be used in expressions.</p>
+<h3>Negation</h3>
+<p>Negation is performed by using the - operator. If this operator comes before an expression, the value of the expression is negated (turned negative).</p>
+<h3>Bitwise Invert</h3>
+<p>The <i>~</i> operator inverts the value of each bit of an expression. For example <i>~4b1001</i> is equivalent to <i>4b0110</i>.</p>
+<h3>Logical Invert</h3>
+<p>The <i>!</i> operator performs a logical inversion. That means if the expression following it is zero, it becomes 1, and if it is non-zero it becomes 0. This is usually used in conjunction with comparison operators. For example, <i>!(x == 6)</i>.</p>
+<h3>Multiplication</h3>
+<p>The <i>*</i> operator is used to multiply two expressions. For example, <i>4d4 * 4d4</i> is equal to <i>8d16</i>. The width of a multiplication is typically larger than either operand (except when multiplying by a 1 bit number). Multiplication can be expensive to implement in hardware so this operator should be used sparingly when possible.</p>
+<h3>Addition and Subtraction</h3>
+<p>The operators <i>+</i> and <i>-</i> are used for addition and subtraction. For example, <i>4d8 + 4d4</i> is equal to <i>5d12</i>.</p>
+<h3>Bitwise And/Or/Nand/Nor/Xor/Xnor</h3>
+<p>The operators <i>&amp;</i> and <i>|</i> perform bitwise and and or operations between two expressions. For example <i>4b1100 &amp; 4b0101</i> is equal to <i>4b0100</i> and <i>4b1100 | 4b0101</i> is equal to <i>4b1101</i>. There is also ^ for xor. Each of these can have ~ as a prefix to make them the inverted version. For example <i>~&amp;</i> is nand and <i>~^</i> is xnor.</p>
+<h3>Bit Compression</h3>
+<p>The <i>&amp;</i>, <i>|</i>, and <i>^</i> operators, and their inverted versions, can also be used for bit compression when used as a predicate to an expression instead of between two expressions. The <i>&amp;</i> operator will <i>and</i> each bit in the expression following it which will be 1 if all the bits are 1. Otherwise it will be 0. The <i>|</i> operator will or each bit and will be 1 if any bit is 1. Otherwise it will be 0. For example, <i>&amp;4b1001</i> is equal to <i>1b0</i> and <i>|4b1001</i> is equal to <i>1b1</i>. The <i>^</i> operator will tell you if there is an odd number of 1s in the value. For example <i>^4b1011</i> is equal to <i>1b1</i> and <i>^4b1001</i> is equal to <i>1b0</i>.</p>
+<h3>Logical Comparisons</h3>
+<p>There are six different logical comparison operators. Each one sits between two expressions and performs some comparison between the two.</p>
+<p>Less than, <i>&lt;</i>, checks if the left expression is less than the right expression.</p>
+<p>Greater than, <i>&gt;</i>, checks if the left expression is greater than the right expression.</p>
+<p>Equal to, <i>==</i>, checks if both expressions have the same value.</p>
+<p>Not equal to, <i>!=</i>, checks if the expressions have a different value.</p>
+<p>Greater than or equal to, <i>&gt;=</i>, checks if the right expression is greater or equal to the left expression.</p>
+<p>Less than or equal to, <i>&lt;=</i>, checks if the right expression is less than or equal to the left.</p>
+<h3>Logical And/Or</h3>
+<p>The operators <i>&amp;&amp;</i> and <i>||</i> are used to compare boolean expressions. An expression is considered to be true if it has a nonzero value and false otherwise. <i>&amp;&amp;</i> checks to see if both expressions are true and has the value 1 if they are and 0 otherwise. <i>||</i> checks to see if either expression is true and has the value 1 if either is and 0 otherwise. These are most commonly used to combine multiple logical comparisons.</p>
+<h3>Shifts</h3>
+<p>The operators <i>&gt;&gt;</i>, <i>&lt;&lt;</i>, <i>&gt;&gt;&gt;</i>, and <i>&lt;&lt;&lt;</i> are used to shift the bits of a value. The syntax is below.</p>
+<pre class="brush:lucid">value &lt;&lt; bits
+</pre>
+<p>Here <i>value</i> is the value to shift and <i>bits</i> is the number of bits to shift it. <i>&lt;&lt;</i> is the shift right operator, <i>&gt;&gt;</i> is shift left, and the <i>&lt;&lt;&lt;</i> and <i>&gt;&gt;&gt;</i> operators are the signed versions of the first two.</p>
+<p>When shifting left, the rightmost (least significant bits) are zero filled. This is true for both <i>&lt;&lt;</i> and <i>&lt;&lt;&lt;</i> (they are identical). For example <i>4b1011 &lt;&lt; 2</i> becomes <i>4b1100</i>.</p>
+<p>When shifting right, the leftmost bits (most significant bits) are zero filled for <i>&gt;&gt;</i>. However, if <i>&gt;&gt;&gt;</i> is used and the value is signed, the leftmost bits are signed extended. This means the most significant bit (the sign bit) is used to fill. Here are some examples.</p>
+<pre class="brush:lucid">4b0110 &gt;&gt; 2 == 4b0001
+4b0110 &gt;&gt;&gt; 2 == 4b0001
+$signed(4b0110) &gt;&gt; 2 == 4b0001
+$signed(4b0110) &gt;&gt;&gt; 2 == 4b0001
+
+4b1100 &gt;&gt; 2 == 4b0011
+4b1100 &gt;&gt;&gt; 2 == 4b0011
+$signed(4b1100) &gt;&gt; 2 == 4b0011
+$signed(4b1100) &gt;&gt;&gt; 2 == 4b1111
+</pre>
+<h2>Functions</h2>
+<p>Functions take the form <i>$function_name(value)</i> and perform some operation on the specified value. There are currently only three supported functions.</p>
+<p><i>$signed(a)</i> is used to specify that a certain value should be treated as a signed number. The bits themselves do not change nor does their width. Here are some examples.</p>
+<pre class="brush:lucid">$signed(4b1001) == -7
+$signed(24) == -8
+</pre>
+<p><i>$unsigned(a)</i> is used to specify that a certain value should be treated as an unsigned number. The bits themselves do not change nor does their width. Here are some examples.</p>
+<pre class="brush:lucid">$unsigned(-7) == 4b1001
+$unsigned(-8) == 24
+</pre>
+<p><i>$clog2(a)</i> is used to calculate the ceiling log base 2 of a value. This is useful when trying to figure out how many bits are required to store a number of combinations. For example if you want to create a timer that goes from <i>0</i> to <i>MAX - 1</i> (so you have <i>MAX</i> different values) then <i>$clog2(MAX)</i> will be the number of bits required for your counter. Note that if you want to know how many bits are required to store a value, you need to use <i>$clog2(VALUE + 1)</i>. Unlike <i>$signed</i> and <i>$unsigned</i>, <i>$clog2</i> can only be used on constant expressions since it must be evaluated at synthesis time.</p>
+<p><i>$pow(a,b)</i> is used to calculate <i>a</i> to the power of <i>b</i>. This is typically used when <i>a</i> is 2 to figure out the number of combinations a signal of width <i>b</i> can store. Similar to <i>$clog2()</i>, the arguments must both be constant expressions.</p>
+<p><i>$reverse(a)</i> is used to reverse the order of an array. In multi-dimensional arrays, this only reverses the top most dimension. This is particularly useful with strings as we like to think of the left most letter being the first instead of the right. For example <i>$reverse("Hello")</i> is the same as <i>"olleH"</i>. Similar to <i>$clog2()</i>, <i>$reverse()</i> only works on constant expressions.</p>
+<h2>Constant Expressions</h2>
+<p>Constant expressions are expressions that the tools can figure out their value at synthesis time. It more or less boils down to any expression that doesn&rsquo;t contain any signals. For example, <i>2 + 2</i> is a constant expression since the tools can figure out the value is 4. However, <i>x + 2</i> is not since the value of <i>x</i> may not be known at synthesis time.</p>
+<p>They have all the same operators as regular expressions, except they also include the division operator <i>/</i>.</p>
+<p>The reason the division operator exists only for constant expressions is because the division can be computed at synthesis and replaced with a constant number. If division was used in an expression, there would need to be a circuit in place that could perform the division on the fly later. While there are division circuits, there are too many trade offs that the tools can't make for you. If you need to divide an expression, check out the Core Generator tool to create a divider.</p>
+<p>Constant expressions are used in many cases. The width of arrays must be specified with a constant expression, the selectors in case statements must be constant expressions, and the width of an array selection must be a constant expression.</p>

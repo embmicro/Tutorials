@@ -1,0 +1,21 @@
+<p>This tutorial will walk you through how to upgrade your Mojo's bootloader to the new Arduino compatible bootloader. To do this you will need an ISP programmer. We recommend the&nbsp;<strong>AVRISP mkII</strong>, but any ISP programmer should work. You can even use an Arduino to program the Mojo if you have one.</p>
+<p>Please note that some Mojo V2s have an ATmega32U4 microprocessor instead of the ATmega16U4. If your Mojo V2 has the ATmega32U4 processor, follow these instructions as if you have a Mojo V3. You should also select Mojo V3 as the board when using the Arduino IDE.</p>
+<p>Before you can program the bootloader you must first install the Arduino IDE as outlined in the {{widget type="cms/widget_page_link" template="cms/widget/link/link_inline.phtml" page_id="49"}} tutorial.</p>
+<h3>Connecting Your Programmer</h3>
+<p>After the Arduino IDE is properly setup, you need to connect your programmer to the Mojo.</p>
+<p>The ISP pins on the Mojo are broken out on 6 pads on the back of the board. Take a look at the following image to see how to connect your programmer.</p>
+<p><img src="{{media url="wysiwyg/mojo-loader/mojo-v3-prog-pins.jpg"}}" alt="Mojo ISP Pins" /></p>
+<p>We recommend soldering wires to these pads to temporarily connect your programmer. After the bootloader is programmed you can remove the wires.</p>
+<h3>Burning the Bootloader</h3>
+<p>With the programmer connected to your Mojo, fire up the Arduino IDE.</p>
+<p>Select your programmer from&nbsp;<strong>Tools/Programmer</strong>.</p>
+<p>Make sure the board is set to your board type, <strong>Mojo V3</strong> or <strong>Mojo V2</strong>, in&nbsp;<strong>Tools/Board</strong>.&nbsp;</p>
+<p>Finally, click&nbsp;<strong>Tools/Burn Bootloader</strong> to burn the bootloader.</p>
+<p>After the bootloader is burned, you will need to install the drivers for the board if you haven't already. These are installed during the install of the {{widget type="cms/widget_page_link" anchor_text="Mojo IDE" template="cms/widget/link/link_inline.phtml" page_id="42"}} or the {{widget type="cms/widget_page_link" anchor_text="Mojo Loader" template="cms/widget/link/link_inline.phtml" page_id="24"}}.</p>
+<p>You then need to flash the FPGA loader program.</p>
+<p>
+    You can do this in the Mojo IDE by clicking <b>Tools->Flash Firmware...</b> or by using the Arduino IDE as outlined below.
+</p>
+<p>Download the sketch through our&nbsp;<a href="https://github.com/embmicro/mojo-arduino" target="_blank">GitHub page</a> or by downloading the zip directly from <a href="https://github.com/embmicro/mojo-arduino/archive/master.zip">here</a>.</p>
+<p>Open the sketch in the Arduino IDE and load the code onto the Mojo by clicking the right arrow on the top bar. Make sure you have the correct serial port selected in <strong>Tools/Serial Port</strong> first.</p>
+<p>You are then all set! You can either use the board as is, or make some edits to the code!</p>

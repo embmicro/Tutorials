@@ -1,0 +1,32 @@
+<div class="video-container"><iframe src="//www.youtube.com/embed/Aw53UIwnJqU?rel=0" frameborder="0" width="680" height="383"></iframe></div>
+<p>What is digital logic? As you may or may not already know digital systems are based on two logic levels which are usually represented as 1's and 0's.</p>
+<p>An interesting thing to note before we get too far in is that digital circuits are really made of the same stuff as any analog circuit. They have real voltages, with real currents, and those are never exact. The idea behind a digital system is that you simply design it so that there are two main stable states. That way even if you introduce noise it will remain close to that state. This makes digital circuits very robust and noise tolerant. It also allows up to abstract away what the actually voltages are and to just work with 0s and 1s.</p>
+<p>So what is a 1? What is a 0? If you've ever worked with microcontroller, you know a lot of them run off 5V so we will use 5V in this example. If you were designing a system and it had an input that ranged from 0V to 5V what would you call a 0 or a 1? The most obvious answer is just split it in half. Anything 2.5V or less is a 0 and anything from 2.5V to 5V is a 1. That is what these circuits try to do, however, what happens when you are at 2.5V? Is that a 0 or a 1? Due to variations in the parts, temperature changes, power supply fluctuations, and an almost infinite number of causes it could end up being either!</p>
+<p>Because of this uncertainty when between states we will call this region&nbsp;<em>no man's land</em>. Digital circuits are designed not to operate with voltages near this region. In fact digital circuits will have specifications that tell you the minimum voltage to be considered a 1 and the maximum voltage that will considered a 0 reliably. For now we won't worry about this since most of the time the circuits are designed to avoid this for us.</p>
+<h4>True or false?</h4>
+<p>Digital circuits are all based around these things called&nbsp;<strong>logic gates</strong>. Before we get into what the gates actually are, you need to know that they are all based on the idea that a&nbsp;<strong>1 is true</strong> and that a&nbsp;<strong>0 is false</strong>. This is known as&nbsp;<strong>boolean logic</strong>.</p>
+<p>Digital logic circuits are often convenient to draw out with symbols. Each symbol represents some logic function that has at least one input and at least one output. In general the inputs are shown on the left and the outputs are shown on the right. That way the signals&nbsp;in the circuit flow from left to right.</p>
+<h4>Not</h4>
+<p>This is the symbol for a <strong>not</strong> gate.</p>
+<p><img src="{{media url="wysiwyg/digital-logic/not.png"}}" alt="Not gate" /></p>
+<p>All that it does is output the opposite of <strong>a</strong>. So if&nbsp;<strong>a</strong> is true&nbsp;<strong>b</strong> is false. You can think of it's output as:&nbsp;<em>is the input&nbsp;<strong>not</strong> true?</em></p>
+<p>For example, if&nbsp;<strong>a</strong> is 1, then&nbsp;<strong>b</strong> wil output 0.</p>
+<h4>And</h4>
+<p>This is the symbol for an <strong>and</strong> gate.</p>
+<p><img src="{{media url="wysiwyg/digital-logic/and.png"}}" alt="And gate" /></p>
+<p>When&nbsp;<strong>a</strong>&nbsp;<strong>and b</strong> are both true, <strong>c</strong> is true. If either&nbsp;<strong>a</strong> or&nbsp;<strong>b</strong> is false then&nbsp;<strong>c</strong> will be false. You can think of it's output as:&nbsp;<em>is input a&nbsp;<strong>and</strong> input b true?</em></p>
+<p>For example, if&nbsp;<strong>a</strong> is 1 and&nbsp;<strong>b</strong> is 0, then the output,&nbsp;<strong>c</strong>, will be 0. That is because both inputs are not true, so the output is false.</p>
+<h4>Or</h4>
+<p>This is the symbol for an <strong>or</strong> gate.</p>
+<p><img src="{{media url="wysiwyg/digital-logic/or.png"}}" alt="Or gate" /></p>
+<p>The output of this gate,&nbsp;<strong>c</strong>, is true when either&nbsp;<strong>a or b</strong> are true. You can think of it's output as:&nbsp;<em>is input&nbsp;a&nbsp;<strong>or</strong> input b true?</em></p>
+<p>For example, if <strong>a</strong> is 1 and <strong>b</strong> is 0, then the output, <strong>c</strong>, will be 1. That is because at least one of the inputs is true, so the output is true.</p>
+<h4>Xor</h4>
+<p>This is the symbol for an <strong>xor</strong> gate.</p>
+<p><img src="{{media url="wysiwyg/digital-logic/xor.png"}}" alt="Xor gate" /></p>
+<p>This gate you usually don't see as often as the other three, but it is none the less important. This gate is true only when either&nbsp;<strong>a</strong> or&nbsp;<strong>b</strong> is true but not when&nbsp;<strong>a</strong>&nbsp;and&nbsp;<strong>b</strong> are true. It is an&nbsp;<strong>exclusive or</strong>. You can think about it as:&nbsp;<em>is input a&nbsp;<strong>different</strong> from input b?</em></p>
+<p>Another useful way to look at xor gates it to think about that output as: <em>is there an <strong>odd</strong>&nbsp;number of 1s?</em> This way of thinking about it is useful for xor gates that have more than two inputs.</p>
+<p>For example, if a is 1 and b is 1, then the output, c, will be 0. That is because the inputs are the same so the output is false, or because there are an even number of 1s so the output is false.</p>
+<h4>Variations</h4>
+<p>These are only the basic types of these gates. There are many variations of them. The most common variations you will see are combinations of, and, or, xor, with a not gate at the output. Those gates are called nand, nor, and xnor respectively. They are represented the same as their base gate but they have a circle on the output, just like the not gate does.</p>
+<p>The circle represents an inversion (a not gate) and they don't only have to be on the output. They can be on any of the inputs as well. It is just a compact way to draw the schematic so you don't have lots of not gates everywhere.</p>

@@ -1,0 +1,56 @@
+<p>ISE is a program created by Xilinx to support their FPGAs. It includes a bunch of other tools that will be useful for creating your projects. ISE is required to do any work because it is what actually synthesizes your designs into bit files that can be loaded onto the Mojo.</p>
+<p>The process is fairly long, but it shouldn't be too tricky if you follow these instructions. These instructions were written for ISE 14.7 and tested on Ubuntu 12.04, Ubuntu 12.10, Linux Mint, Windows 7, and Windows 8.</p>
+<p>First <a href="http://www.xilinx.com/support/download/index.html/content/xilinx/en/downloadNav/design-tools.html" target="_blank">click here</a>&nbsp;to go to the Xilinx downloads page. Under "Version" select the newest (14.7 at the time of writing). Scroll down a bit until you see&nbsp;<strong style="line-height: 1.5;">ISE Design Suite</strong>. Under that header you should see full installers for Windows and Linux. Choose the one for the system you are installing ISE on.</p>
+<p>You will then be prompted to login. If you don't have an account, create one. Once you have logged in the download should start.</p>
+<p>If you have Java installed, you may be prompted to use their "Download Manager", if not it will just start like any other download. The method you use does not make a difference; however, if you have problems with the download manager you can disable Java in your browser and try again to prevent it from using it.</p>
+<p>The file is big, about 6.5GB, so make sure you have plenty of space! (Also, the installation requires a further 16GB of space.)</p>
+<p>Once the file is downloaded you need to decompress it.&nbsp;<span style="line-height: 1.5;">The file is a tar file so if you are on Windows you will need to install something like <a href="http://www.7-zip.org/download.html" target="_blank">7-Zip</a>. Some tar extractors fail to properly extact this archive. 7-Zip is known to work so if you have trouble with the installer, try extracting it with 7-Zip.</span></p>
+<p><span style="line-height: 1.5;">For Windows, just open the folder and double click on <strong>xsetup</strong> to start the installation.</span></p>
+<p><span style="line-height: 1.5;">For Linux, you will need to open up a terminal and cd into the directory where you extracted the files. Then run the setup with <strong>sudo ./xsetup</strong>.</span></p>
+<p>Once in the setup, accept all the license agreements. Once you are on the page that asks which edition to install, choose the&nbsp;<strong>ISE WebPACK&nbsp;</strong>option and click next.</p>
+<p><img alt="ISE install selection" src="{{media url="wysiwyg//installing-ise/win_select.jpg"}}" /></p>
+<p>You are then prompted to select what you would like to install. You only need to select the first option as shown. If you are running Windows 8 on a 64bit computer, you don't need to check anything as the built-in license manager doesn't work anyways. I've also been told that having&nbsp;<strong>Use multiple CPU cores for faster installation</strong> can cause it to lock up during install, but I personally haven't had that happen.</p>
+<p><img style="line-height: 1.5;" alt="ISE get a license" src="{{media url="wysiwyg/installing-ise/lin_license.jpg"}}" /></p>
+<p>Once the install is done you should be prompted to get a license.</p>
+<p>Choose the&nbsp;<strong>Get Free ISE WebPack License</strong> option and click next.</p>
+<p>If you are using Windows clicking <strong>Connect Now</strong>&nbsp;should open up a webpage for you. If you are on Linux you will probably be shown the same prompt, but if clicking&nbsp;<strong>Connect Now</strong> doesn't work you can go to&nbsp;<a href="http://www.xilinx.com/getlicense" target="_blank">http://www.xilinx.com/getlicense</a>.</p>
+<p>From that page login and select&nbsp;<strong>ISE Design Suite: WebPACK License</strong>. Click on the button in the bottom left<strong>&nbsp;</strong>labeled <strong>Generate Node-Locked License</strong>.</p>
+<p>Click next twice and you should be emailed your license! Open up your email and download the .lic file.</p>
+<p>Now go back to the installation window. Under the&nbsp;<strong>Manage Xilinx Licenses</strong> tab click&nbsp;<strong>Copy License...</strong> and select your .lic file.&nbsp;<span style="font-size: 12px; line-height: 1.5;">If you are on Windows 8, clicking&nbsp;<strong>Copy License...</strong> will crash the license manager. See below how to get your license setup in Windows 8.</span></p>
+<p>Once it finishes copying the license file you can close the window. ISE is now installed and ready to use!</p>
+<p>If you are a Windows user you can stop here. However, if you are using Linux the following steps will make it easier to use ISE.</p>
+<h3>Windows 8.1/10</h3>
+<p>Xilinx has released a guide for overcoming the common problems with Windows 8.1 and 10. <a target="_blank" href="http://www.xilinx.com/support/answers/62380.html">Check out the gude here.</a>
+</p>
+<h3>Windows 10 64bit</h3>
+<p>The latest updates to Windows 10 seem to break PlanAhead. The second part of <a target="_blank" href="https://www.eevblog.com/forum/microcontrollers/guide-getting-xilinx-ise-to-work-with-windows-8-64-bit/">this post</a> titled "Fixing PlanAhead not opening from 64-bit Project Navigator" seemed to fix the issue.</p>
+<h3>Windows 8 64bit</h3>
+<p>To get your license installed in Windows 8 you need to create a folder in the root of your home drive (usually C). Name the folder ".xilinx." note both dots. Once you made the folder it should show up as ".xilinx" (no trailing dot). For whatever reason, Windows requires you to have that trailing dot and it removes it automatically. Once you have that folder created just drop your Xilinx.lic file into it. ISE should now find the license file and open without complaints.</p>
+<p>The 64bit version of ISE doesn't work correctly in Windows 8. Every time it tries to open a file dialog it crashes. To fix this you need to use the 32bit version.</p>
+<p>First navigate to C:\Xilinx\14.7\ISE_DS\ISE\bin</p>
+<p>The <strong>nt</strong> folders contain the executables. Right now any shortcuts you have and file associations point to the 64bit version. Move into the&nbsp;<strong>nt</strong> folder.</p>
+<p>Copy the file&nbsp;<strong>ise</strong>. Move back to the&nbsp;<strong>bin</strong> folder and into the&nbsp;<strong>nt64</strong> folder. Rename the current&nbsp;<strong>ise</strong> file to&nbsp;<strong>ise64</strong> and paste the 32bit version of&nbsp;the&nbsp;<strong>ise</strong> file. This will make sure you use the 32bit version.</p>
+<p>If you would like a shortcut on your start screen, rename the file you just pasted into <strong>nt64</strong>&nbsp;to&nbsp;<strong>ISE Design Suite</strong>. Then right click it and choose&nbsp;<strong>pin to start</strong>.</p>
+<p><img alt="Pin ISE to Windows 8 Start" src="{{media url="wysiwyg/installing-ise/isewin8tostart.png"}}" /></p>
+<p>Once it is pinned you need to rename it back to&nbsp;<strong>ise</strong>. I found that trick of renaming, pinning, change name back to be useful to make the launcher on the start page.</p>
+<h3>Creating a launcher in Linux</h3>
+<p>Open up a terminal and enter</p>
+<pre class="brush: bash">cd /opt/Xilinx/14.7/ISE_DS
+sudo gedit run_ise.sh</pre>
+<p>In the text editor paste the following code.</p>
+<pre class="brush: bash">#!/bin/bash
+. /opt/Xilinx/14.7/ISE_DS/settingsXX.sh
+ise</pre>
+<p>Make sure you replace XX with the type of computer you are using (32 for 32bit computers; &nbsp;64 for 64bit computers).</p>
+<p>Save and close the file. Then back in the command line enter the following.</p>
+<pre class="brush: bash">sudo chmod +x run_ise.sh</pre>
+<p>This will make the file you just created executable.</p>
+<p>The following applies to Ubuntu. If you are using Linux Mint just right click on the <strong>Menu</strong> button and click&nbsp;<strong>Edit menu</strong>. From there you can create a launcher the same way as shown below.</p>
+<p>Enter the following in the terminal.</p>
+<pre class="brush: bash">sudo apt-get install --no-install-recommends gnome-panel
+sudo gnome-desktop-item-edit /usr/share/applications/ --create-new</pre>
+<p><img alt="Create a launcher" src="{{media url="wysiwyg/installing-ise/launcher_ubuntu.png"}}" /></p>
+<p>Fill out the form as shown. For the command select the run_ise.sh file you created in /opt/Xilinx/14.7/ISE_DS.</p>
+<p>An icon can be found at /opt/Xilinx/14.7/ISE_DS/ISE/data/images/pn-ise.png</p>
+<p>Click OK to create the launcher.</p>
+<p>ISE should now show up in Unity.</p>

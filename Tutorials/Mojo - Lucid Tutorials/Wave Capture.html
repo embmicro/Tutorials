@@ -1,0 +1,251 @@
+<p><strong>This tutorial is obsolete. To use the wave capture feature now, simply start with the Reg Interface example and click the debug icon. The Mojo IDE will now do everything else for you. The only requirement is that the reg_interface module is instantiated in mojo_top and is properly connected (as it is in the Reg Interface example). We are working on removing this requirement as well.</strong></p>
+
+<p>Welcome to the Wave Capture Tutorial! In this tutorial we are going to walk though how to setup your project to use the Wave Capture tool in the Mojo IDE. This tool allows you to inspect signals inside your design as it runs on the FPGA.</p>
+<p>Keep in mind that the Wave Capture tool is in its infancy. It is currently pretty feature poor and has many limitations. Fear not! We have a lot in store for this tool.</p>
+<h2>Register Interface</h2>
+<p>The Wave Capture tool relies upon the Register Interface module to communicate with the IDE. This interface converts the serial port exposed by the AVR Interface into an address based interface allowing your computer to issue read and writes to specific addresses. For a lot more details check out the {{widget type="cms/widget_page_link" anchor_text="Register Interface Tutorial" template="cms/widget/link/link_inline.phtml" page_id="73"}}.</p>
+<p>Because this tools relies on the Register Interface, that means you can't use the serial port as you typically would. For example, you can't use this tool with the <i>Hello World!</i> tutorial because it requires access to the serial port. We are looking into ways to relieve this restriction. Ideally, we'd like for you to not be able to tell that the debugger is embedded in your project.</p>
+<h3>The Debug Version</h3>
+<p>If you check out the components library (Project_-&gt;Add Components...) you'll find a new category, <i>Debugging</i>. Under this category is the component <i>Register Interface (Debug)</i>. This component is almost identical to the <i>Register Interface</i> module, but with the debugger also built in.</p>
+<p>If we take a look at this component we can see what's going on.</p>
+<pre class="brush:lucid;first-line:41;class-name:scroll">module reg_interface_debug  #(
+    CLK_FREQ = 50000000 : CLK_FREQ &gt; 0,                  // clock frequency
+    DATA_WIDTH = 8 : DATA_WIDTH &gt; 0 &amp;&amp; DATA_WIDTH &lt;= 32, // number of signals to capture
+    CAPTURE_DEPTH = 256 : CAPTURE_DEPTH &gt; 0              // samples per capture
+  )(
+    input clk,                                           // clock
+    input rst,                                           // reset
+
+    // Serial RX Interface
+    input rx_data[8],                                    // data received
+    input new_rx_data,                                   // new data flag (1 = new data)
+
+    // Serial Tx Interface
+    output tx_data[8],                                   // data to send
+    output new_tx_data,                                  // new data flag (1 = new data)
+    input tx_busy,                                       // transmitter is busy flag (1 = busy)
+
+    // Register Interface
+    output&lt;Register.master&gt; regOut,                      // register outputs
+    input&lt;Register.slave&gt; regIn,                         // register inputs
+
+    // Debug inputs
+    input debug[DATA_WIDTH]                              // signals to capture
+  ) {
+
+  const BASE_ADDR = 32hfffffff0;                         // base address for wave_capture
+
+  .clk(clk) {
+    .rst(rst) {
+      reg_interface reg_interface (#CLK_FREQ(CLK_FREQ));
+      wave_capture wave_capture (#DATA_WIDTH(DATA_WIDTH), #CAPTURE_DEPTH(CAPTURE_DEPTH), #BASE_ADDR(BASE_ADDR));
+    }
+  }
+
+  sig&lt;Register.master&gt; regOutMod;
+
+  always {
+    wave_capture.regIn = reg_interface.regOut;
+    wave_capture.data = debug;
+
+    regOutMod = reg_interface.regOut;
+
+    // Commands to these addresses are used by wave_capture so hide them
+    if (regOutMod.address &gt;= 32hfffffff0)
+      regOutMod.new_cmd = 0;
+
+    // connect reg_interface with IO ports
+    reg_interface.rx_data = rx_data;
+    reg_interface.new_rx_data = new_rx_data;
+    tx_data = reg_interface.tx_data;
+    new_tx_data = reg_interface.new_tx_data;
+    reg_interface.tx_busy = tx_busy;
+    regOut = regOutMod;
+
+    // If wave_capture has data, send that. Otherwise, forward user data
+    reg_interface.regIn = wave_capture.regOut.drdy ? wave_capture.regOut : regIn;
+  }
+}
+</pre>
+<p>This module acts as a wrapper for the <i>Wave Capture</i> module and the regular <i>Register Interface</i> module.</p>
+<p>The only kind of fancy thing it does is redirect reads and writes from addresses 32hfffffff0 through 32hffffffff to the <i>Wave Capture</i> module which uses these to talk to the IDE.</p>
+<p>Note that the forwarding for read data is pretty naive. It simply forwards the Wave Capture data when it says it has data and the user data otherwise. This means that if you <b>always</b> say data is ready the data from the Wave Capture module won't make it to the Register Interface. However, if you only respond to read requests (like you should be), it will work as reads to the addresses used by Wave Capture are blocked from user view.</p>
+<h2>Capturing Data</h2>
+<p>Alright, enough explanation. Let us look at exactly how to capture data.</p>
+<p>The only input (or output) that is different in the debug version of the Register Interface is <i>debug</i>. This is where you input the signals that you want to capture and view.</p>
+<p>The width of the data you want to capture and the depth (number of samples) is specified as parameter to the <i>Register Interface (debug)</i> module. These are the <i>DATA_WIDTH</i> and <i>CAPTURE_DEPTH</i> parameters.</p>
+<p><i>DATA_WIDTH</i>, as you probably guessed, specifies the width of <i>debug</i>. In other words, the number of signals you want to sample. The current implementation limits this to at most 32.</p>
+<p><i>CAPTURE_DEPTH</i> specifies the number of samples to capture. There isn't a hard limit on how big this can be. However, the <i>Wave Capture</i> module will use the RAM inside the FPGA to store samples. By making this too big you can run out of RAM and your project will fail to build. Also the larger it gets the more resources the module will take. This may increase the time it takes to build your project as well as potentially break your designs timing. Because of this, you should use as small a value that is still useful.</p>
+<p>Note that the total amount of RAM needed will be <i>DATA_WIDTH</i> * <i>CAPTURE_DEPTH</i>. That means if you double <i>CAPTURE_DEPTH</i> but halve <i>DATA_WIDTH</i> you will be using roughly the same amount of RAM.</p>
+<h3>Example Project</h3>
+<p>We have an example project built into the IDE to show you how to get started.</p>
+<p>Create a new Lucid project and base it off the <i>Wave Capture</i> example.</p>
+<p>This example project hooks a pseudo-random number generator up to the debugger.</p>
+<pre class="brush:lucid;class-name:scroll">module mojo_top (
+    input clk,              // 50MHz clock
+    input rst_n,            // reset button (active low)
+    output led [8],         // 8 user controllable LEDs
+    input cclk,             // configuration clock, AVR ready when high
+    output spi_miso,        // AVR SPI MISO
+    input spi_ss,           // AVR SPI Slave Select
+    input spi_mosi,         // AVR SPI MOSI
+    input spi_sck,          // AVR SPI Clock
+    output spi_channel [4], // AVR general purpose pins (used by default to select ADC channel)
+    input avr_tx,           // AVR TX (FPGA RX)
+    output avr_rx,          // AVR RX (FPGA TX)
+    input avr_rx_busy       // AVR RX buffer full
+  ) {
+
+  sig rst;                  // reset signal
+
+  .clk(clk) {
+    // The reset conditioner is used to synchronize the reset signal to the FPGA
+    // clock. This ensures the entire FPGA comes out of reset at the same time.
+    reset_conditioner reset_cond;
+
+    .rst(rst){
+      // the avr_interface module is used to talk to the AVR for access to the USB port and analog pins
+      avr_interface avr;
+      reg_interface_debug reg(#DATA_WIDTH(32), #CAPTURE_DEPTH(256)); // 32 bits of data, 256 samples
+
+      pn_gen pn_gen; // pseudo-random number generator
+    }
+  }
+
+  sig&lt;Register.slave&gt; dummyRegIn;
+
+  always {
+    reset_cond.in = ~rst_n;            // input raw inverted reset signal
+    rst = reset_cond.out;              // conditioned reset
+
+    // connect inputs of avr
+    avr.cclk = cclk;
+    avr.spi_ss = spi_ss;
+    avr.spi_mosi = spi_mosi;
+    avr.spi_sck = spi_sck;
+    avr.rx = avr_tx;
+    avr.channel = hf;                  // ADC is unused so disable
+    avr.tx_block = avr_rx_busy;        // block TX when AVR is busy
+
+    // connect outputs of avr
+    spi_miso = avr.spi_miso;
+    spi_channel = avr.spi_channel;
+    avr_rx = avr.tx;
+
+    // connect reg interface to avr interface
+    reg.rx_data = avr.rx_data;
+    reg.new_rx_data = avr.new_rx_data;
+    avr.tx_data = reg.tx_data;
+    avr.new_tx_data = reg.new_tx_data;
+    reg.tx_busy = avr.tx_busy;
+
+    // the reg_interface isn't used outside the logic analyzer so connect it to a dummy interface
+    dummyRegIn.drdy = 0;
+    dummyRegIn.data = 32hx;
+    reg.regIn = dummyRegIn;
+
+    pn_gen.next = 1;                   // keep generating numbers
+    pn_gen.seed = 0;                   // don't really care about the seed
+    reg.debug = pn_gen.num;            // connect the pn output to the debugger
+
+    led = 0;                           // turn off the LEDs
+  }
+}</pre>
+<p>You can see we hook up the <i>AVR Interface</i> like the other tutorials and then link up the <i>Register Interface</i> to its serial interface.</p>
+<p>Because this project isn't using the Register Interface for anything other than the debugger, we use the <i>dummyRegIn</i> signal to connect to the <i>regIn</i> input. If you wanted to use the Register Interface you could actually hook something real up here. Just keep in mind that the addresses 32hfffffff0 through 32hffffffff can't be used.</p>
+<p>On line 66, you can see where we hook up the actual data to the debugger.</p>
+<p>Go ahead an build this project and load it onto your Mojo.</p>
+<h2>Using the Tool</h2>
+<p>With the project loaded on your Mojo, fire up the <i>Wave Capture</i> tool by going to <b>Tools-&gt;Wave Capture...</b>.</p>
+<p>When you first open the tool you'll have a mostly blank screen.</p>
+<p><img alt="" src="{{media url="wysiwyg/lucid/blank_capture.png"}}" /></p>
+<p>With your Mojo plugged in, click the <i>Connect</i> icon. It is the left most icon that looks like a plug.</p>
+<p>This will cause the IDE to read the debugger's settings such as number of bits, sample depth, and debugger version.</p>
+<p>Once it reads this data, it will show the signals and version. The version is in the upper right corner.</p>
+<p><img alt="" src="{{media url="wysiwyg/lucid/capture_connected.png"}}" /></p>
+<p>If you take a look at the left side with the bit names, you'll see the trigger settings. There are four trigger types (from left to right), rising edge, falling edge, high level, and low level.</p>
+<p>Before we start messing around with triggers, click the <i>Capture</i> icon (it looks like a camera's aperture). With no triggers set, it will grab the data immediately.</p>
+<p><img alt="" src="{{media url="wysiwyg/lucid/random_capture.png"}}" /></p>
+<p>You can now click and drag around the waves to scroll up and down. Using your mouse wheel, you can zoom in and out. The vertical lines represent clock edges.</p>
+<p>If you click capture a few more times you'll see that each time you get another set of random data. Let us now setup some triggers so we can fine tune when we start a capture.</p>
+<p>Click the <b>rising edge</b> trigger button for <i>Bit 0</i> and click <i>Capture</i> again.</p>
+<p><img alt="" src="{{media url="wysiwyg/lucid/trigger_capture.png"}}" /></p>
+<p>Notice that no matter how many times you click capture <i>Bit 0</i> will always start high. This is because a rising edge occurred right before the capture started.</p>
+<p>You can enable more than one trigger condition on a single bit. If you do this then it will trigger if any of the conditions are met. Some combinations don't really make sense. For example, if you enable both high and low level triggers, then it will always trigger (the signal is always high or low).</p>
+<p>If you enable triggers on multiple signals, then all the signals' triggers must be true for a capture to happen. For example, if you also select the rising edge trigger for <i>Bit 1</i> then a capture will happen only when bits 0 and 1 go from low to high in the same clock cycle.</p>
+<p>It is pretty easy to setup impossible conditions depending on your design. For example, if we set the low level trigger on all 32 bits, the capture will never happen. This is because a property of the random number generator is that it will never output 0. If this happens, you can cancel the capture by clicking the <i>Capture</i> icon again. When a capture is in progress the icon changes into a cancel icon.</p>
+<h2>Connecting a Counter</h2>
+<p>By now you should have a reasonable idea how the Wave Capture tool works and how to use it. To further solidify your understanding, let us modify the example project and connect a counter instead of the pseudo random number generator.</p>
+<pre class="brush:lucid;class-name:scroll">module mojo_top (
+    input clk,              // 50MHz clock
+    input rst_n,            // reset button (active low)
+    output led [8],         // 8 user controllable LEDs
+    input cclk,             // configuration clock, AVR ready when high
+    output spi_miso,        // AVR SPI MISO
+    input spi_ss,           // AVR SPI Slave Select
+    input spi_mosi,         // AVR SPI MOSI
+    input spi_sck,          // AVR SPI Clock
+    output spi_channel [4], // AVR general purpose pins (used by default to select ADC channel)
+    input avr_tx,           // AVR TX (FPGA RX)
+    output avr_rx,          // AVR RX (FPGA TX)
+    input avr_rx_busy       // AVR RX buffer full
+  ) {
+
+  sig rst;                  // reset signal
+
+  .clk(clk) {
+    // The reset conditioner is used to synchronize the reset signal to the FPGA
+    // clock. This ensures the entire FPGA comes out of reset at the same time.
+    reset_conditioner reset_cond;
+
+    .rst(rst){
+      // the avr_interface module is used to talk to the AVR for access to the USB port and analog pins
+      avr_interface avr;
+      reg_interface_debug reg(#DATA_WIDTH(32), #CAPTURE_DEPTH(256)); // 32 bits of data, 256 samples
+
+      dff counter[32];
+    }
+  }
+
+  sig&lt;Register.slave&gt; dummyRegIn;
+
+  always {
+    reset_cond.in = ~rst_n;            // input raw inverted reset signal
+    rst = reset_cond.out;              // conditioned reset
+
+    // connect inputs of avr
+    avr.cclk = cclk;
+    avr.spi_ss = spi_ss;
+    avr.spi_mosi = spi_mosi;
+    avr.spi_sck = spi_sck;
+    avr.rx = avr_tx;
+    avr.channel = hf;                  // ADC is unused so disable
+    avr.tx_block = avr_rx_busy;        // block TX when AVR is busy
+
+    // connect outputs of avr
+    spi_miso = avr.spi_miso;
+    spi_channel = avr.spi_channel;
+    avr_rx = avr.tx;
+
+    // connect reg interface to avr interface
+    reg.rx_data = avr.rx_data;
+    reg.new_rx_data = avr.new_rx_data;
+    avr.tx_data = reg.tx_data;
+    avr.new_tx_data = reg.new_tx_data;
+    reg.tx_busy = avr.tx_busy;
+
+    // the reg_interface isn't used outside the logic analyzer so connect it to a dummy interface
+    dummyRegIn.drdy = 0;
+    dummyRegIn.data = 32hx;
+    reg.regIn = dummyRegIn;
+
+    counter.d = counter.q + 1;         // increment counter
+    reg.debug = counter.q;             // connect to debugger
+
+    led = 0;                           // turn off the LEDs
+  }
+}</pre>
+<p>Build, load, and capture the project.</p>
+<p><img alt="" src="{{media url="wysiwyg/lucid/counter_capture.png"}}" /></p>
+<p>Again, you can play around with the triggers. By setting the level triggers (high or low) you can specify an exact counter value to start the capture.</p>
+<p>That is it for this tutorial. Hopefully now you have a solid understanding on how to use this tool to help you debug your designs. Keep an eye out for future updates and improvements to this tool!</p>
